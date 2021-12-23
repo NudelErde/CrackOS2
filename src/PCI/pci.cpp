@@ -164,6 +164,29 @@ void PCI::iterateDevices(Callback callback, void* context) {
     }
 }
 
+PCI::Handler* first;
+
+PCI::addHandler(PCI::Handler* handler) {
+    handler->next = first;
+    first = handler;
+}
+
+void PCI::init() {
+    first = nullptr;
+    PCI::addHandler(SATA::getACPITableParser());
+    Output::getDefault()->printf("PCI: Class       Vendor      Location\n");
+    PCI::iterateDevices([](PCI& device, void*) {
+        Output::getDefault()->printf("     %2hhx:%2hhx:%2hhx    %4hx:%4hx   %2hhx:%2hhx.%1hhx\n",
+                                     device.classCode, device.subclassCode, device.progIF,
+                                     device.vendorID, device.deviceID,
+                                     device.bus, device.device, device.function);
+        for (PCI::Handler* handler = first; handler != nullptr; handler = handler->next) {
+            handler->onDeviceFound(device);
+        }
+    },
+                        nullptr);
+}
+
 //------------------------------------------------------------------------------
 //----------------------[ Configuartion space access ]--------------------------
 //------------------------------------------------------------------------------

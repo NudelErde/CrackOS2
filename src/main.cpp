@@ -19,12 +19,7 @@ extern "C" void main(uint64_t multiboot) {
     PageTable::init();
     readMultiboot(multiboot);
     ACPI::init();
-    PCI::iterateDevices([](PCI& device, void*) {
-        Output::getDefault()->printf("Class: %hhx:%hhx:%hhx  ", device.classCode, device.subclassCode, device.progIF);
-        Output::getDefault()->printf("Vendor: %hx:%hx  ", device.vendorID, device.deviceID);
-        Output::getDefault()->printf("Location: %hhx:%hhx.%hhx\n", device.bus, device.device, device.function);
-    },
-                        nullptr);
+    PCI::init();
 
     Output::getDefault()->print("Done!\n");
 

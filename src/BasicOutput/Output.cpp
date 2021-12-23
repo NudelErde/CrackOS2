@@ -74,6 +74,7 @@ void Output::printDec(uint64_t dec) {
 //  width: number
 
 void Output::printValueImpl(uint64_t v, char specifier, char length, char flags, uint8_t width) {
+    if (!width) width = 1;
     if (specifier == '%') {
         print('%');
         return;
@@ -116,13 +117,13 @@ void Output::printValueImpl(uint64_t v, char specifier, char length, char flags,
     }
     if (specifier == 'x') {
         if (length == 'h') {
-            print(v & 0xFFFFull, 1, 4);
+            print(v & 0xFFFFull, width, 4);
         } else if (length == 'H') {
-            print(v & 0xFFull, 1, 2);
+            print(v & 0xFFull, width, 2);
         } else if (length == 'l') {
-            print(v & 0xFFFFFFFFFFFFFFFFull, 1, 16);
+            print(v & 0xFFFFFFFFFFFFFFFFull, width, 16);
         } else {
-            print(v & 0xFFFFFFFFull, 1, 8);
+            print(v & 0xFFFFFFFFull, width, 8);
         }
         return;
     }

@@ -18,11 +18,18 @@ public:
     uint8_t headerType;
 
 public:
+    struct Handler {
+        virtual void onDeviceFound(PCI& device) = 0;
+        Handler* next;
+    };
+
     static ACPI::TableParser* getACPITableParser();
 
     using Callback = void (*)(PCI&, void*);
 
     static void iterateDevices(Callback callback, void* context);
+    static void addHandler(Handler* handler);
+    static void init();
 
     uint8_t readConfigByte(uint64_t offset);
     uint16_t readConfigWord(uint64_t offset);
