@@ -1,0 +1,15 @@
+build/
+*.o
+*.a
+*.so
+*.so.*
+
+*.asm
+!src/*.asm
+
+dist
+
+.vscode
+image_file
+
+*.bin
