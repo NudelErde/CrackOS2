@@ -14,13 +14,12 @@ extern "C" void main(uint64_t multiboot) {
     Output::init();
     Output::getDefault()->clear();
     Output::getDefault()->setCursor(0, 0);
-    Output::getDefault()->print("Output initialized\n");
     Interrupt::setupInterruptVectorTable();
-    Output::getDefault()->print("Interrupts initialized\n");
     PageTable::init();
-    Output::getDefault()->print("Page table initialized\n");
     readMultiboot(multiboot);
-    Output::getDefault()->print("Multiboot read\n");
+    ACPI::init();
+
+    Output::getDefault()->print("Done!\n");
 
     stop();
 }

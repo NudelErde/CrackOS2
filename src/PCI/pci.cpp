@@ -1,18 +1,27 @@
 #include "PCI/pci.hpp"
+#include "BasicOutput/Output.hpp"
 #include "LanguageFeatures/memory.hpp"
 #include "Memory/memory.hpp"
 
+static uint8_t* configurationSpaceBaseAddressAllocationStructures = 0;
+static uint64_t configuartionSapceBaseAddressAloocationStructuresLength = 0;
+
 class PCI_ACPI_TableParser : public ACPI::TableParser {
 public:
-    void parse(uint8_t* table) override;
+    bool parse(ACPI::TableHeader* table) override;
     const char* getSignature() override;
 };
 
-void PCI_ACPI_TableParser::parse(uint8_t* table) {
-    //sanity check if table is valid
-    if (memcmp(table, "MCFG", 4) != 0) {
-        return;
+bool PCI_ACPI_TableParser::parse(ACPI::TableHeader* table) {
+    //check if table is valid because never trust your code
+    if (memcmp(table->Signature, "MCFG", 4) != 0) {
+        return false;
     }
+
+    configurationSpaceBaseAddressAllocationStructures = (uint8_t*) (table + 1);
+    configuartionSapceBaseAddressAloocationStructuresLength = (table->Length - sizeof(ACPI::TableHeader)) / 16;
+    Output::getDefault()->printf("Found PCI configuration with %u segment(s)\n", configuartionSapceBaseAddressAloocationStructuresLength);
+    return true;
 }
 
 const char* PCI_ACPI_TableParser::getSignature() {

@@ -69,6 +69,7 @@ void readMultiboot(uint64_t multiboot) {
 
     Multiboot memoryDataDecoder;
     memoryDataDecoder.setTagDecoder(0x6, [](uint8_t* entry) {
+        Output::getDefault()->print("Multiboot: Found Memory\n");
         PhysicalAllocator::readMultibootInfos(entry);
     });
     memoryDataDecoder.decode((uint8_t*) multiboot);
@@ -99,6 +100,4 @@ void readMultiboot(uint64_t multiboot) {
         elfSymbols = entry + sizeof(uint64_t);//skip tag
     });
     decoder.decode(reinterpret_cast<uint8_t*>(multiboot));
-
-    Output::getDefault()->printf("ACPI table address: %p\n", acpiTableAddress);
 }
