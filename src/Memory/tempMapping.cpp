@@ -7,7 +7,12 @@
 
 uint8_t* TempMemory::mapPages(uint64_t physicalAddress, uint64_t count, bool user) {
     if (!user) {
-        return (uint8_t*) (physicalAddress + 32Ti + 64Ti);
+        if (physicalAddress < 512Gi) {
+            return (uint8_t*) (physicalAddress + 32Ti + 64Ti);
+        } else {
+            Output::getDefault()->printf("Physical address %llu is too high for TempMemory::mapPages\n", physicalAddress);
+            stop();
+        }
     }
     uint64_t baseAddress = 32Ti;
     uint64_t virtualAddress = baseAddress + physicalAddress;

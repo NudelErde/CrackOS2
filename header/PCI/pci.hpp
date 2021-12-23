@@ -3,17 +3,26 @@
 #include <stdint.h>
 
 class PCI {
-private:
+public:
     uint8_t bus;
     uint8_t device;
     uint8_t function;
+    uint64_t physicalAddress;
+
+    uint16_t vendorID;
+    uint16_t deviceID;
+    uint8_t classCode;
+    uint8_t subclassCode;
+    uint8_t progIF;
+    uint8_t revisionID;
+    uint8_t headerType;
 
 public:
     static ACPI::TableParser* getACPITableParser();
 
-    using Callback = void (*)(PCI&);
+    using Callback = void (*)(PCI&, void*);
 
-    static void iterateDevices(Callback callback);
+    static void iterateDevices(Callback callback, void* context);
 
     uint8_t readConfigByte(uint64_t offset);
     uint16_t readConfigWord(uint64_t offset);
