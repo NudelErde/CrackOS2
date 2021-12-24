@@ -1,4 +1,5 @@
 #include "Memory/heap.hpp"
+#include "BasicOutput/Output.hpp"
 #include "Common/Units.hpp"
 #include "Memory/memory.hpp"
 #include "Memory/pageTable.hpp"
@@ -55,7 +56,9 @@ void* kmalloc(uint64_t requestedSize) {
     //only reached if we are at the end of the linked list
     //allocate a new page and find the needed pages of virtual memory
     uint64_t physicalMemory = PhysicalAllocator::allocatePhysicalMemory(pageCount);
-    PointerData* data = &dummy;
+    if (physicalMemory == ~0ull)
+        return nullptr;
+    data = &dummy;
     while (data->nextVirtual != 0) {
         data = (PointerData*) data->nextVirtual;
         if (data->nextVirtual == 0) {
@@ -74,13 +77,13 @@ void* kmalloc(uint64_t requestedSize) {
             for (uint64_t i = 0; i < pageCount; i++) {
                 uint64_t virtualPage = virtualBase + i * pageSize;
                 uint64_t physicalPage = physicalMemory + i * pageSize;
-                PageTable::map(virtualPage, physicalPage, {
-                                                                  .writeEnable = true,
-                                                                  .userAvailable = false,
-                                                                  .writeThrough = false,
-                                                                  .cacheDisable = false,
-                                                                  .executeDisable = false,
-                                                          });
+                PageTable::map(physicalPage, (void*) virtualPage, {
+                                                                          .writeEnable = true,
+                                                                          .userAvailable = false,
+                                                                          .writeThrough = false,
+                                                                          .cacheDisable = false,
+                                                                          .executeDisable = false,
+                                                                  });
             }
             PointerData* newData = (PointerData*) virtualBase;
             newData->size = realSize;
@@ -103,13 +106,13 @@ void* kmalloc(uint64_t requestedSize) {
     for (uint64_t i = 0; i < pageCount; i++) {
         uint64_t virtualPage = virtualBase + i * pageSize;
         uint64_t physicalPage = physicalMemory + i * pageSize;
-        PageTable::map(virtualPage, physicalPage, {
-                                                          .writeEnable = true,
-                                                          .userAvailable = false,
-                                                          .writeThrough = false,
-                                                          .cacheDisable = false,
-                                                          .executeDisable = false,
-                                                  });
+        PageTable::map(physicalPage, (void*) virtualPage, {
+                                                                  .writeEnable = true,
+                                                                  .userAvailable = false,
+                                                                  .writeThrough = false,
+                                                                  .cacheDisable = false,
+                                                                  .executeDisable = false,
+                                                          });
     }
     PointerData* newData = (PointerData*) virtualBase;
     newData->size = realSize;

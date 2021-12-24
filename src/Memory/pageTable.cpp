@@ -169,9 +169,9 @@ void PageTable::unmap(uint64_t virtualAddress) {
 }
 
 
-void PageTable::map(uint64_t physicalAddress, uint64_t virtualAddress, Option option) {
+void PageTable::map(uint64_t physicalAddress, void* virtualAddress, Option option) {
     PagingAddress address;
-    address.pointer = (void*) virtualAddress;
+    address.pointer = virtualAddress;
     PagingPage* level4Page = getLevel4Page();
     PagingPage* level3Page = getLinkedPage(level4Page->entries[address.level4], true);
     PagingPage* level2Page = getLinkedPage(level3Page->entries[address.level3], true);
@@ -194,7 +194,7 @@ void PageTable::map(uint64_t physicalAddress, uint64_t virtualAddress, Option op
     level1Page->entries[address.level1].available1 = 0;
     level1Page->entries[address.level1].protectionKey = 0;
     level1Page->entries[address.level1].available2 = 0;
-    invalidatePage(virtualAddress);
+    invalidatePage((uint64_t) virtualAddress);
 }
 
 uint64_t PageTable::getPhysicalAddress(uint64_t virtualAddress) {

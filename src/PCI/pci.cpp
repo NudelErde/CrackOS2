@@ -4,6 +4,7 @@
 #include "LanguageFeatures/memory.hpp"
 #include "Memory/memory.hpp"
 #include "Memory/tempMapping.hpp"
+#include "Storage/SATA.hpp"
 
 //------------------------------------------------------------------------------
 //-----------------------[  Get PCI configuartion space ]-----------------------
@@ -166,14 +167,14 @@ void PCI::iterateDevices(Callback callback, void* context) {
 
 PCI::Handler* first;
 
-PCI::addHandler(PCI::Handler* handler) {
+void PCI::addHandler(PCI::Handler* handler) {
     handler->next = first;
     first = handler;
 }
 
 void PCI::init() {
     first = nullptr;
-    PCI::addHandler(SATA::getACPITableParser());
+    PCI::addHandler(SATA::getPCIHandler());
     Output::getDefault()->printf("PCI: Class       Vendor      Location\n");
     PCI::iterateDevices([](PCI& device, void*) {
         Output::getDefault()->printf("     %2hhx:%2hhx:%2hhx    %4hx:%4hx   %2hhx:%2hhx.%1hhx\n",

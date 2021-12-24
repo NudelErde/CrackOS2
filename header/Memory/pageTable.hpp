@@ -20,7 +20,7 @@ public:
      * @note The mapped page is not initialized.
      * @note The mapped physical memory region is not marked as used.
      */
-    static void map(uint64_t physicalAddress, uint64_t virtualAddress, Option option = {});
+    static void map(uint64_t physicalAddress, void* virtualAddress, Option option = {});
 
     /**
      * @brief Returns the physical address that the given virtual address maps to.

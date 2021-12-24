@@ -2,6 +2,7 @@
 #include "BasicOutput/Output.hpp"
 #include "BasicOutput/VGATextOut.hpp"
 #include "CPUControl/cpu.hpp"
+#include "Memory/heap.hpp"
 #include <stdint.h>
 
 extern "C" void* memset(void* ptr, int v, uint64_t num) {
@@ -89,8 +90,7 @@ void operator delete(void* p) {
     if (p == nullptr) {
         return;
     }
-    //check if kernel memory is loaded
-    //TODO
+    kfree(p);
 }
 
 void operator delete(void* p, uint64_t size) {
@@ -98,12 +98,29 @@ void operator delete(void* p, uint64_t size) {
     if (p == nullptr) {
         return;
     }
-    //check if kernel memory is loaded
-    //TODO
+    kfree(p);
 }
 
 void* operator new(uint64_t size) {
-    //check if kernel memory is loaded
-    //TODO
-    return nullptr;
+    return kmalloc(size);
+}
+
+void operator delete[](void* p) {
+    //check if p is null
+    if (p == nullptr) {
+        return;
+    }
+    kfree(p);
+}
+
+void operator delete[](void* p, uint64_t size) {
+    //check if p is null
+    if (p == nullptr) {
+        return;
+    }
+    kfree(p);
+}
+
+void* operator new[](uint64_t size) {
+    return kmalloc(size);
 }

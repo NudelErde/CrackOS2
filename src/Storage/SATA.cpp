@@ -6,7 +6,7 @@ struct MyHandler : public PCI::Handler {
     void onDeviceFound(PCI& pci) override;
 };
 
-struct uint8_t buffer[sizeof(MyHandler)];
+static uint8_t buffer[sizeof(MyHandler)];
 
 PCI::Handler* SATA::getPCIHandler() {
     return new (buffer) MyHandler();
@@ -14,6 +14,16 @@ PCI::Handler* SATA::getPCIHandler() {
 
 void MyHandler::onDeviceFound(PCI& pci) {
     if (pci.classCode == 0x01 && pci.subclassCode == 0x06 && pci.progIF == 0x01) {
-        Output::getDefault()->print("Found SATA device!\n");
+        Storage::addStorage(new SATA(pci));
     }
+}
+
+SATA::SATA(PCI& pci) : pci(pci) {
+}
+
+uint64_t SATA::getSize() {
+}
+void SATA::read(uint64_t offset, uint64_t size, uint8_t* buffer) {
+}
+void SATA::write(uint64_t offset, uint64_t size, uint8_t* buffer) {
 }

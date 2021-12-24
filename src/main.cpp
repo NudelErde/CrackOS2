@@ -4,6 +4,7 @@
 #include "CPUControl/interrupts.hpp"
 #include "Common/Units.hpp"
 #include "LanguageFeatures/memory.hpp"
+#include "Memory/heap.hpp"
 #include "Memory/pageTable.hpp"
 #include "Memory/physicalAllocator.hpp"
 #include "PCI/pci.hpp"

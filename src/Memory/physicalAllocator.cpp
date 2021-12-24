@@ -110,11 +110,13 @@ uint64_t PhysicalAllocator::allocatePhysicalMemory(uint64_t count) {
                 last->nextPhysicalAddress = region->nextPhysicalAddress;
                 region->nextPhysicalAddress = 0;
             }
-            return physicalAddress;
+            return physicalAddress * pageSize;
         }
         last = region;
         region = (MemoryRegionDescriptor*) TempMemory::mapPages(region->nextPhysicalAddress, 1, false);
     }
+    Output::getDefault()->printf("Unable to allocate %lu pages (out of physical memory)\n", count);
+    stop();
     return ~0;
 }
 void PhysicalAllocator::freePhysicalMemory(uint64_t address, uint64_t count) {
@@ -221,7 +223,8 @@ static void initMemoryInfos(uint8_t* ptr) {
     // the pointer to the linked list is at the beginning of the static info page
 
     Context2 context2;
-    context2.last = &regions[0];
+    regions = (MemoryRegionDescriptor*) (staticInfoPage);
+    context2.last = regions;
     readMemoryInfos(ptr, &context2, [](void* context, uint64_t baseAddress, uint64_t length, uint32_t type) {
         Context2* ctx = (Context2*) context;
         if (type != 1) {
