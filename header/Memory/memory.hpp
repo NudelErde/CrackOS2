@@ -1,5 +1,6 @@
 #pragma once
 
+#include "LanguageFeatures/Types.hpp"
 #include <stdint.h>
 
 constexpr uint64_t pageSize = 0x1000;
@@ -80,4 +81,125 @@ static inline void io_wait(void) {
 
 [[nodiscard]] inline void* operator new(uint64_t size, void* ptr) noexcept {
     return ptr;
+}
+
+template<typename T>
+class shared_ptr {
+    struct Data {
+        uint32_t refCount;
+        uint8_t objectBuffer[sizeof(T)];
+    };
+    Data* data;
+
+    shared_ptr(Data* data) : data(data) {}
+
+public:
+    template<typename... Args>
+    static shared_ptr create(Args&&... args) {
+        Data* data = new Data();
+        data->refCount = 1;
+        new (data->objectBuffer) T(std::forward<Args>(args)...);
+        return shared_ptr(data);
+    }
+
+    shared_ptr() : data(nullptr) {}
+    shared_ptr(T* ptr) {
+        data = new Data();
+        data->refCount = 1;
+        T* object = (T*) data->objectBuffer;
+        *object = std::move(*ptr);
+    }
+
+    ~shared_ptr() {
+        if (data) {
+            data->refCount--;
+            if (data->refCount == 0) {
+                ((T*) data->objectBuffer)->~T();
+                delete data;
+            }
+        }
+    }
+
+    shared_ptr(const shared_ptr& other) {
+        data = other.data;
+        data->refCount++;
+    }
+
+    shared_ptr(shared_ptr&& other) noexcept {
+        data = other.data;
+        other.data = nullptr;
+    }
+
+    shared_ptr& operator=(const shared_ptr& other) {
+        if (this == &other) {
+            return *this;
+        }
+        if (data) {
+            data->refCount--;
+            if (data->refCount == 0) {
+                ((T*) data->objectBuffer)->~T();
+                delete data;
+            }
+        }
+        data = other.data;
+        data->refCount++;
+        return *this;
+    }
+
+    shared_ptr& operator=(shared_ptr&& other) noexcept {
+        if (this == &other) {
+            return *this;
+        }
+        if (data) {
+            data->refCount--;
+            if (data->refCount == 0) {
+                ((T*) data->objectBuffer)->~T();
+                delete data;
+            }
+        }
+        data = other.data;
+        other.data = nullptr;
+        return *this;
+    }
+
+    bool exists() const {
+        return data != nullptr;
+    }
+
+    T* operator->() {
+        return (T*) data->objectBuffer;
+    }
+
+    const T* operator->() const {
+        return (const T*) data->objectBuffer;
+    }
+
+    T* operator&() {
+        return (T*) data->objectBuffer;
+    }
+
+    const T* operator&() const {
+        return (const T*) data->objectBuffer;
+    }
+
+    T& operator*() {
+        return *(T*) data->objectBuffer;
+    }
+
+    const T& operator*() const {
+        return *(const T*) data->objectBuffer;
+    }
+
+    bool operator==(const shared_ptr& other) const {
+        return data == other.data;
+    }
+
+    bool operator!=(const shared_ptr& other) const {
+        return data != other.data;
+    }
+};
+
+template<typename T, typename... Args>
+shared_ptr<T> make_shared(Args&&... args) {
+    return shared_ptr<T>::create(std::forward<Args>(args)...);
 }

@@ -200,11 +200,11 @@ uint16_t PCI::readConfigWord(uint64_t offset) {
     uint8_t* ptr = TempMemory::mapPages(physicalAddress, 1, false);
     return *(uint16_t*) (ptr + offset);
 }
-uint32_t PCI::readConfigDword(uint64_t offset) {
+uint32_t PCI::readConfigDWord(uint64_t offset) {
     uint8_t* ptr = TempMemory::mapPages(physicalAddress, 1, false);
     return *(uint32_t*) (ptr + offset);
 }
-uint64_t PCI::readConfigQword(uint64_t offset) {
+uint64_t PCI::readConfigQWord(uint64_t offset) {
     uint8_t* ptr = TempMemory::mapPages(physicalAddress, 1, false);
     return *(uint64_t*) (ptr + offset);
 }
@@ -216,11 +216,89 @@ void PCI::writeConfigWord(uint64_t offset, uint16_t value) {
     uint8_t* ptr = TempMemory::mapPages(physicalAddress, 1, false);
     *(uint16_t*) (ptr + offset) = value;
 }
-void PCI::writeConfigDword(uint64_t offset, uint32_t value) {
+void PCI::writeConfigDWord(uint64_t offset, uint32_t value) {
     uint8_t* ptr = TempMemory::mapPages(physicalAddress, 1, false);
     *(uint32_t*) (ptr + offset) = value;
 }
-void PCI::writeConfigQword(uint64_t offset, uint64_t value) {
+void PCI::writeConfigQWord(uint64_t offset, uint64_t value) {
     uint8_t* ptr = TempMemory::mapPages(physicalAddress, 1, false);
     *(uint64_t*) (ptr + offset) = value;
+}
+
+PCI::BAR PCI::getBar(uint8_t index) {
+    if (index > 5) {
+        return BAR{0, 0};
+    }
+    uint64_t address = readConfigDWord(0x10 + index * 4);
+    if (address == 0) {
+        return BAR{0, 0};
+    }
+    //if memory and 64bit extend address by 4 bytes in next bar
+    if ((address & 0b101) == 0b100) {//bit 0 must be off = memory, bit 2 must be on = 64bit
+        address |= ((uint64_t) readConfigDWord(0x10 + index * 4 + 4)) << 32;
+    }
+    if (address & 0b1) {// io
+        return BAR{address & ~0b11ull, (uint8_t) (address & 0b11ull)};
+    } else {
+        uint64_t memory = address & ~0b1111ull;
+        return BAR{(uint64_t) TempMemory::mapPages(memory, 1, false), (uint8_t) (address & 0b1111ull)};
+    }
+}
+
+uint8_t PCI::BAR::readByte(uint64_t offset) {
+    if (isIO()) {
+        return in8((uint16_t) (offset + baseAddress));
+    } else {
+        return *(uint8_t*) (baseAddress + offset);
+    }
+}
+uint16_t PCI::BAR::readWord(uint64_t offset) {
+    if (isIO()) {
+        return in16((uint16_t) (offset + baseAddress));
+    } else {
+        return *(uint16_t*) (baseAddress + offset);
+    }
+}
+uint32_t PCI::BAR::readDWord(uint64_t offset) {
+    if (isIO()) {
+        return in32((uint16_t) (offset + baseAddress));
+    } else {
+        return *(uint32_t*) (baseAddress + offset);
+    }
+}
+uint64_t PCI::BAR::readQWord(uint64_t offset) {
+    if (isIO()) {
+        return in32((uint16_t) (offset + baseAddress)) || ((uint64_t) in32((uint16_t) (offset + baseAddress + 4)) << 32);
+    } else {
+        return *(uint64_t*) (baseAddress + offset);
+    }
+}
+void PCI::BAR::writeByte(uint64_t offset, uint8_t value) {
+    if (isIO()) {
+        out8((uint16_t) (offset + baseAddress), value);
+    } else {
+        *(uint8_t*) (baseAddress + offset) = value;
+    }
+}
+void PCI::BAR::writeWord(uint64_t offset, uint16_t value) {
+    if (isIO()) {
+        out16((uint16_t) (offset + baseAddress), value);
+    } else {
+        *(uint16_t*) (baseAddress + offset) = value;
+    }
+}
+void PCI::BAR::writeDWord(uint64_t offset, uint32_t value) {
+    if (isIO()) {
+        out32((uint16_t) (offset + baseAddress), value);
+    } else {
+        *(uint32_t*) (baseAddress + offset) = value;
+    }
+}
+void PCI::BAR::writeQWord(uint64_t offset, uint64_t value) {
+    if (isIO()) {
+        out32((uint16_t) (offset + baseAddress), value);
+        out32((uint16_t) (offset + baseAddress + 4), value >> 32);
+    } else {
+        *(uint64_t*) (baseAddress + offset) = value;
+    }
 }

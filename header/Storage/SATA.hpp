@@ -1,12 +1,17 @@
 #pragma once
+#include "Memory/memory.hpp"
 #include "PCI/pci.hpp"
 #include "Storage/Storage.hpp"
 
 class SATA : public Storage {
 public:
-    explicit SATA(PCI& pci);
+    struct Controller {
+        PCI pci;
+        Controller(PCI& pci);
+        void init(shared_ptr<Controller> me);///< Initialize the controller and adds the SATA devices to the storage list.
+    };
 
-    ~SATA() = default;
+    SATA(shared_ptr<Controller> controller);
 
     uint64_t getSize() override;
     void read(uint64_t offset, uint64_t size, uint8_t* buffer) override;
@@ -15,5 +20,5 @@ public:
     static PCI::Handler* getPCIHandler();
 
 private:
-    PCI pci;
+    shared_ptr<Controller> controller;
 };
