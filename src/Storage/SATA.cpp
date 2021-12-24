@@ -29,9 +29,9 @@ void SATA::Controller::init(shared_ptr<SATA::Controller> me) {
         PCI::BAR bar = pci.getBar(i);
         if (bar.exists()) {
             if (bar.isMemory()) {
-                Output::getDefault()->printf("BAR %d: %llx MEM %s\n", i, bar.baseAddress, bar.is64Bit() ? "64" : "32");
+                Output::getDefault()->printf("AHCI: BAR %d: %llx MEM %s\n", i, bar.baseAddress, bar.is64Bit() ? "64" : "32");
             } else {
-                Output::getDefault()->printf("BAR %d: %llx IO\n", i, bar.baseAddress);
+                Output::getDefault()->printf("AHCI: BAR %d: %llx IO\n", i, bar.baseAddress);
             }
         }
     }

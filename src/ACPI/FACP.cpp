@@ -102,7 +102,9 @@ bool FACPTableParser::parse(ACPI::TableHeader* table) {
         if (index > sizeof(powerNames) / sizeof(char*)) {
             index = 0;
         }
-        Output::getDefault()->printf("FACP: Preferred Power Management Profile: %s (%hhd)\n", powerNames[index], facp->preferredPowerManagementProfile);
+        if (index != 0) {
+            Output::getDefault()->printf("FACP: Preferred Power Management Profile: %s (%hhd)\n", powerNames[index], facp->preferredPowerManagementProfile);
+        }
         facpTable = facp;
         return true;
     }
