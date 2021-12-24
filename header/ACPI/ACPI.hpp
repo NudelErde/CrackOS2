@@ -1,7 +1,6 @@
 #pragma once
 #include <stdint.h>
 
-
 class ACPI {
 public:
     struct TableHeader {
@@ -15,6 +14,7 @@ public:
         uint32_t CreatorID;
         uint32_t CreatorRevision;
     };
+    static_assert(sizeof(TableHeader) == 36, "TableHeader size is wrong");
 
     class TableParser {
     public:
