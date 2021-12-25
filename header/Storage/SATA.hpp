@@ -5,10 +5,22 @@
 
 class SATA : public Storage {
 public:
-    struct Controller {
-        PCI pci;
+    class Controller {
+    public:
         Controller(PCI& pci);
         void init(shared_ptr<Controller> me);///< Initialize the controller and adds the SATA devices to the storage list.
+
+        PCI::BAR& getABAR();
+
+    private:
+        PCI pci;
+        uint32_t portsAvailable;
+        uint32_t capabilities;
+        uint32_t capabilities2;
+        uint32_t version;
+        PCI::BAR abar;
+
+        friend class SATA;
     };
 
     SATA(shared_ptr<Controller> controller);
@@ -19,6 +31,15 @@ public:
 
     static PCI::Handler* getPCIHandler();
 
+    constexpr static uint64_t sectorSize = 512;
+
 private:
+    bool tryToInit(uint8_t port);
+
+    PCI::BAR& getDBAR();
+
     shared_ptr<Controller> controller;
+    uint8_t port;
+    PCI::BAR dbar;
+    uint64_t sectorCount;
 };

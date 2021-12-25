@@ -132,13 +132,13 @@ void Output::printValueImpl(uint64_t v, char specifier, char length, char flags,
 void Output::print(BitList bits) {
     print('[');
     bool first = true;
-    for (uint64_t i = 0; i < 64; ++i) {
+    for (uint8_t i = 0; i < bits.bitCount; ++i) {
         if (bits.value & 1 << i) {
             if (!first) {
                 print(',');
             }
             first = false;
-            printDec(i);
+            printDec((uint64_t) i);
         }
     }
     print(']');

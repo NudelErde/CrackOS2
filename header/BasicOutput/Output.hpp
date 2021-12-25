@@ -5,11 +5,20 @@
 struct BitList {
     template<typename T>
     BitList(T t) {
-        value = *reinterpret_cast<uint64_t*>(&t);
-        value &= (1ull << (sizeof(T) * 8ull)) - 1ull;
+        if constexpr (sizeof(T) <= sizeof(uint8_t)) {
+            value = *reinterpret_cast<uint8_t*>(&t);
+        } else if constexpr (sizeof(T) <= sizeof(uint16_t)) {
+            value = *reinterpret_cast<uint16_t*>(&t);
+        } else if constexpr (sizeof(T) <= sizeof(uint32_t)) {
+            value = *reinterpret_cast<uint32_t*>(&t);
+        } else if constexpr (sizeof(T) <= sizeof(uint64_t)) {
+            value = *reinterpret_cast<uint64_t*>(&t);
+        }
+        bitCount = sizeof(T) * 8;
     }
 
     uint64_t value;
+    uint8_t bitCount;
 };
 
 class Output {

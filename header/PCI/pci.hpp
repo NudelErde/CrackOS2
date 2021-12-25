@@ -58,6 +58,14 @@ public:
             return BarAccess{this, offset};
         }
 
+        inline BAR operator+(uint64_t offset) {
+            return {baseAddress + offset, type};
+        }
+
+        inline BAR operator-(uint64_t offset) {
+            return {baseAddress - offset, type};
+        }
+
         uint8_t readByte(uint64_t offset);
         uint16_t readWord(uint64_t offset);
         uint32_t readDWord(uint64_t offset);
