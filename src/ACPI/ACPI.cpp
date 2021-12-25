@@ -1,6 +1,7 @@
 #include "ACPI/ACPI.hpp"
 #include "ACPI/APIC.hpp"
 #include "ACPI/FACP.hpp"
+#include "ACPI/HPET.hpp"
 #include "ACPI/multiboot.hpp"
 #include "BasicOutput/Output.hpp"
 #include "CPUControl/cpu.hpp"
@@ -13,10 +14,11 @@
 
 void ACPI::init() {
     ACPI::TableParser* buffer[4];
-    ACPI acpi(buffer, 4);
+    ACPI acpi(buffer, sizeof(buffer) / sizeof(buffer[0]));
     acpi.addTableParser(PCI::getACPITableParser());
     acpi.addTableParser(FACP::getParser());
     acpi.addTableParser(APIC::getParser());
+    acpi.addTableParser(HPET::getParser());
 
     acpi.parse(getRsdtAddress());
 }

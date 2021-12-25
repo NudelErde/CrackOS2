@@ -96,7 +96,7 @@ static void fillInterruptVectorTable();
 
 void systemError(Interrupt& i) {
     Output::getDefault()->print("System error\n");
-    Output::getDefault()->printf("Interrupt: %hhd\n", i.getInterruptNumber());
+    Output::getDefault()->printf("Interrupt: %hhu\n", i.getInterruptNumber());
     stop();
 }
 

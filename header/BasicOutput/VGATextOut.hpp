@@ -15,6 +15,7 @@ public:
     uint64_t getY() override;
     void setX(uint64_t x) override;
     void setY(uint64_t y) override;
+    void scroll();
 
 private:
     uint64_t index = 0;

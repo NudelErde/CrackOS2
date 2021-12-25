@@ -38,6 +38,15 @@ public:
             return baseAddress != 0;
         }
 
+        template<typename T>
+        T* getAs() {
+            if (isMemory()) {
+                return (T*) baseAddress;
+            } else {
+                return nullptr;
+            }
+        }
+
         struct BarAccess {
             BAR* bar;
             uint64_t offset;

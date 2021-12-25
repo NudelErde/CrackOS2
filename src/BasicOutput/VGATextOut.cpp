@@ -1,9 +1,22 @@
 #include "BasicOutput/VGATextOut.hpp"
 #include "CPUControl/cpu.hpp"
+#include "LanguageFeatures/memory.hpp"
 
 VGATextOut::VGATextOut() {
     index = 0;
     textBuffer = (volatile char*) 0xB8000;
+}
+
+void VGATextOut::scroll() {
+    for (uint64_t line = 1; line < getHeight(); ++line) {
+        memcpy((void*) (textBuffer + (line - 1) * getWidth() * 2),
+               (void*) (textBuffer + line * getWidth() * 2),
+               getWidth() * 2);
+    }
+    memset((void*) (textBuffer + (getHeight() - 1) * getWidth() * 2),
+           0,
+           getWidth() * 2);
+    setCursor(0, getHeight() - 1);
 }
 
 void VGATextOut::print(char c) {
@@ -14,6 +27,9 @@ void VGATextOut::print(char c) {
         textBuffer[index * 2] = c;
         textBuffer[index * 2 + 1] = 0x07;
         index++;
+    }
+    if (getY() == getHeight()) {
+        scroll();
     }
 }
 

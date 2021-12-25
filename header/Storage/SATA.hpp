@@ -39,7 +39,7 @@ private:
     PCI::BAR& getDBAR();
 
     shared_ptr<Controller> controller;
-    uint8_t port;
+    uint8_t portIndex;
     PCI::BAR dbar;
     uint64_t sectorCount;
 };

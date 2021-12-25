@@ -1,5 +1,6 @@
 #include "ACPI/APIC.hpp"
 #include "BasicOutput/Output.hpp"
+#include "CPUControl/cpu.hpp"
 #include "CPUControl/interrupts.hpp"
 #include "LanguageFeatures/memory.hpp"
 #include "Memory/memory.hpp"
@@ -64,6 +65,7 @@ bool APICTableParser::parse(ACPI::TableHeader* table) {
         }
         Output::getDefault()->printf("Found %hhu processors\n", processorCount);
         acpiTable = table;
+        Interrupt::switchToAPICMode();
         return true;
     }
     return false;
@@ -87,11 +89,6 @@ uint32_t APIC::get(uint64_t offset) {
     return *reg;
 }
 
-void APIC::setSpuriousInterruptVector(uint8_t vector) {
-    uint32_t current = get(0x0F0);
-    set(0x0F0, ((uint32_t) vector) | 0x100 | current);
-}
-
 static uint32_t readIOApic(uint8_t* address, uint8_t offset) {
     uint32_t volatile* ioapic = (uint32_t volatile*) address;
     ioapic[0] = offset;
@@ -104,9 +101,37 @@ static void writeIOApic(uint8_t* address, uint8_t offset, uint32_t data) {
     ioapic[4] = data;
 }
 
+static uint32_t getBaseInterrupt(uint32_t interruptNumber) {
+    EntryBase* entry = (EntryBase*) ((uint8_t*) acpiTable + sizeof(MADT));
+    uint64_t remainingSize = acpiTable->Length - sizeof(MADT);
+    while (remainingSize) {
+        remainingSize -= entry->size;
+        if (entry->type == 1) {
+            struct IOAPIC {
+                EntryBase header;
+                uint8_t id;
+                uint8_t reserved;
+                uint32_t address;
+                uint32_t globalSystemInterruptBase;
+            } __attribute__((packed));
+            IOAPIC* ioapic = (IOAPIC*) entry;
+            uint32_t globalSystemInterruptBase = ioapic->globalSystemInterruptBase;
+            if (globalSystemInterruptBase <= interruptNumber && globalSystemInterruptBase + 24 > interruptNumber) {
+                uint8_t* address = TempMemory::mapPages(ioapic->address, 1, false);
+                uint8_t redirectionCount = (readIOApic(address, 0x01) >> 16) & 0xFF;
+                if (globalSystemInterruptBase + redirectionCount > interruptNumber) {
+                    return globalSystemInterruptBase;
+                }
+            }
+        }
+        entry = (EntryBase*) ((uint64_t) entry + entry->size);
+    }
+    return 0;
+}
+
 static uint8_t* getIOAPICAddress(uint32_t interruptNumber) {
-    EntryBase* entry = (EntryBase*) (acpiTable + 1);
-    uint64_t remainingSize = acpiTable->Length - sizeof(ACPI::TableHeader);
+    EntryBase* entry = (EntryBase*) ((uint8_t*) acpiTable + sizeof(MADT));
+    uint64_t remainingSize = acpiTable->Length - sizeof(MADT);
     while (remainingSize) {
         remainingSize -= entry->size;
         if (entry->type == 1) {
@@ -132,11 +157,45 @@ static uint8_t* getIOAPICAddress(uint32_t interruptNumber) {
     return nullptr;
 }
 
+void APIC::setSpuriousInterruptVector(uint8_t vector) {
+    uint32_t current = get(0x0F0);
+    set(0x0F0, ((uint32_t) vector) | 0x100 | current);
+    //disable all ioapic interrupts
+    EntryBase* entry = (EntryBase*) ((uint8_t*) acpiTable + sizeof(MADT));
+    uint64_t remainingSize = acpiTable->Length - sizeof(MADT);
+    while (remainingSize) {
+        remainingSize -= entry->size;
+        if (entry->type == 1) {
+            struct IOAPIC {
+                EntryBase header;
+                uint8_t id;
+                uint8_t reserved;
+                uint32_t address;
+                uint32_t globalSystemInterruptBase;
+            } __attribute__((packed));
+            IOAPIC* ioapic = (IOAPIC*) entry;
+            uint32_t globalSystemInterruptBase = ioapic->globalSystemInterruptBase;
+            uint8_t* address = TempMemory::mapPages(ioapic->address, 1, false);
+            uint8_t redirectionCount = (readIOApic(address, 0x01) >> 16) & 0xFF;
+            for (uint8_t i = 0; i < redirectionCount; i++) {
+                RedirectionEntry entry;
+                entry.lowerDword = readIOApic(address, 0x10 + i * 2);
+                entry.upperDword = readIOApic(address, 0x10 + i * 2 + 1);
+                entry.mask = 1;
+                writeIOApic(address, 0x10 + i * 2, entry.lowerDword);
+                writeIOApic(address, 0x10 + i * 2 + 1, entry.upperDword);
+            }
+        }
+        entry = (EntryBase*) ((uint64_t) entry + entry->size);
+    }
+}
+
 bool APIC::isInterruptEnabled(uint32_t interruptNumber) {
     uint8_t* address = getIOAPICAddress(interruptNumber);
     if (address == nullptr) {
         return false;
     }
+    interruptNumber -= getBaseInterrupt(interruptNumber);
     RedirectionEntry entry;
     entry.lowerDword = readIOApic(address, 0x10 + interruptNumber * 2);
     entry.upperDword = readIOApic(address, 0x10 + interruptNumber * 2 + 1);
@@ -147,6 +206,7 @@ void APIC::setInterruptEnabled(uint32_t interruptNumber, bool enabled) {
     if (address == nullptr) {
         return;
     }
+    interruptNumber -= getBaseInterrupt(interruptNumber);
     RedirectionEntry entry;
     entry.lowerDword = readIOApic(address, 0x10 + interruptNumber * 2);
     entry.upperDword = readIOApic(address, 0x10 + interruptNumber * 2 + 1);
@@ -161,6 +221,7 @@ void APIC::mapInterrupt(uint8_t interruptNumber, uint8_t resultVector, uint8_t c
     if (address == nullptr) {
         return;
     }
+    interruptNumber -= getBaseInterrupt(interruptNumber);
     RedirectionEntry entry;
     entry.lowerDword = readIOApic(address, 0x10 + interruptNumber * 2);
     entry.upperDword = readIOApic(address, 0x10 + interruptNumber * 2 + 1);
@@ -179,8 +240,8 @@ void APIC::mapInterrupt(uint8_t interruptNumber, uint8_t resultVector, uint8_t c
 }
 
 uint32_t APIC::getSourceOverride(uint8_t oldSource) {
-    EntryBase* entry = (EntryBase*) (acpiTable + 1);
-    uint64_t remainingSize = acpiTable->Length - sizeof(ACPI::TableHeader);
+    EntryBase* entry = (EntryBase*) ((uint8_t*) acpiTable + sizeof(MADT));
+    uint64_t remainingSize = acpiTable->Length - sizeof(MADT);
     while (remainingSize) {
         remainingSize -= entry->size;
         if (entry->type == 2) {
@@ -205,6 +266,7 @@ uint8_t APIC::getInterrupt(uint32_t hardwareInterrupt) {
     if (address == nullptr) {
         return 0xFF;
     }
+    hardwareInterrupt -= getBaseInterrupt(hardwareInterrupt);
     RedirectionEntry entry;
     entry.lowerDword = readIOApic(address, 0x10 + hardwareInterrupt * 2);
     entry.upperDword = readIOApic(address, 0x10 + hardwareInterrupt * 2 + 1);
