@@ -1,3 +1,4 @@
+#include "ACPI/APIC.hpp"
 #include "ACPI/multiboot.hpp"
 #include "BasicOutput/VGATextOut.hpp"
 #include "CPUControl/cpu.hpp"
@@ -21,6 +22,7 @@ extern "C" void main(uint64_t multiboot) {
     readMultiboot(multiboot);
     ACPI::init();
     PCI::init();
+    Output::getDefault()->printf("CPUID: %hhx\n", APIC::getCPUID());
 
     Output::getDefault()->print("Done!\n");
 

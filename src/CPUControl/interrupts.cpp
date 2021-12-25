@@ -1,4 +1,5 @@
 #include "CPUControl/interrupts.hpp"
+#include "ACPI/APIC.hpp"
 #include "BasicOutput/VGATextOut.hpp"
 #include "CPUControl/cpu.hpp"
 #include "Debug/exceptionHandler.hpp"
@@ -47,6 +48,7 @@ static struct {
     uint8_t offset;
     bool isActive;
 } PICData;
+static bool APICEnabled;
 
 static void remapPICInterrupts(uint8_t offset) {
     PICData.hardwareInterruptMask = 0xFF;
@@ -101,6 +103,7 @@ void systemError(Interrupt& i) {
 Interrupt::InterruptHandler callbacks[256]{};
 
 void Interrupt::setupInterruptVectorTable() {
+    APICEnabled = false;
     memset(interruptVectorTable, 0, sizeof(interruptVectorTable));
     memset(callbacks, 0, sizeof(callbacks));
     fillInterruptVectorTable();
@@ -177,9 +180,20 @@ void Interrupt::setupInterruptHandler(uint8_t interruptNumber, InterruptHandler 
 
 uint8_t Interrupt::hardwareInterruptToVector(HardwareInterruptNumberSource source, uint8_t interruptNumber) {
     if (source == HardwareInterruptNumberSource::PIC) {
-        return interruptNumber + PICData.offset;
+        if (APICEnabled) {
+            uint32_t globalInterrupt = APIC::getSourceOverride(interruptNumber);
+            if (globalInterrupt == (uint32_t) ~0ull) {
+                // guess that the interruptNumber is the global interrupt
+                globalInterrupt = interruptNumber;
+            }
+            return APIC::getInterrupt(globalInterrupt);
+        } else if (PICData.isActive) {
+            return interruptNumber + PICData.offset;
+        }
     } else if (source == HardwareInterruptNumberSource::APIC) {
-        return interruptNumber;
+        if (APICEnabled) {
+            return APIC::getInterrupt(interruptNumber);
+        }
     }
     return 0;
 }
@@ -187,8 +201,22 @@ uint8_t Interrupt::hardwareInterruptToVector(HardwareInterruptNumberSource sourc
 bool Interrupt::isHardwareInterruptEnabled(HardwareInterruptNumberSource source, uint8_t interruptNumber) {
     switch (source) {
         case HardwareInterruptNumberSource::PIC:
-            return (PICData.hardwareInterruptMask & (1 << interruptNumber)) == 0;
+            if (APICEnabled) {
+                uint32_t globalInterrupt = APIC::getSourceOverride(interruptNumber);
+                if (globalInterrupt == (uint32_t) ~0ull) {
+                    // guess that the interruptNumber is the global interrupt
+                    globalInterrupt = interruptNumber;
+                }
+                return APIC::isInterruptEnabled(globalInterrupt);
+            }
+            if (PICData.isActive) {
+                return (PICData.hardwareInterruptMask & (1 << interruptNumber)) == 0;
+            }
+            return false;
         case HardwareInterruptNumberSource::APIC:
+            if (APICEnabled) {
+                return APIC::isInterruptEnabled(interruptNumber);
+            }
             return false;
     }
     return false;
@@ -198,16 +226,33 @@ void Interrupt::setHardwareInterruptEnabled(HardwareInterruptNumberSource source
     disableInterrupts();
     switch (source) {
         case HardwareInterruptNumberSource::PIC:
-            if (enabled) {
-                PICData.hardwareInterruptMask &= ~(1 << interruptNumber);
-            } else {
-                PICData.hardwareInterruptMask |= (1 << interruptNumber);
+            if (APICEnabled) {
+                uint32_t globalInterrupt = APIC::getSourceOverride(interruptNumber);
+                if (globalInterrupt == (uint32_t) ~0ull) {
+                    // guess that the interruptNumber is the global interrupt
+                    globalInterrupt = interruptNumber;
+                }
+                APIC::setInterruptEnabled(globalInterrupt, enabled);
+                break;
             }
 
-            out8(PIC1_DATA, (uint8_t) (PICData.hardwareInterruptMask & 0xFF));
-            out8(PIC2_DATA, (uint8_t) (PICData.hardwareInterruptMask >> 8));
+            if (PICData.isActive) {
+                if (enabled) {
+                    PICData.hardwareInterruptMask &= ~(1 << interruptNumber);
+                } else {
+                    PICData.hardwareInterruptMask |= (1 << interruptNumber);
+                }
+
+                out8(PIC1_DATA, (uint8_t) (PICData.hardwareInterruptMask & 0xFF));
+                out8(PIC2_DATA, (uint8_t) (PICData.hardwareInterruptMask >> 8));
+                break;
+            }
             break;
         case HardwareInterruptNumberSource::APIC:
+            if (APICEnabled) {
+                APIC::setInterruptEnabled(interruptNumber, enabled);
+                break;
+            }
             break;
     }
     if (intEnabled) {
@@ -223,7 +268,19 @@ void Interrupt::sendEOI(uint8_t interruptNumber) {
             }
             out8(PIC1_COMMAND, 0x20);
         }
+    } else if (APICEnabled) {
+        APIC::sendEOI();
     }
+}
+
+void Interrupt::switchToAPICMode() {
+    APICEnabled = true;
+    //disable PIC
+    out8(PIC1_DATA, 0xFF);
+    out8(PIC2_DATA, 0xFF);
+
+    //set spurious interrupt vector
+    APIC::setSpuriousInterruptVector(0xFF);
 }
 
 Interrupt::Interrupt(uint8_t interruptNumber, uint64_t errorCode, uint64_t stackFrame, bool hasError)

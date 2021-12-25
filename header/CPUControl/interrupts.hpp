@@ -35,6 +35,8 @@ public:
 
     static void sendEOI(uint8_t interruptNumber);
 
+    static void switchToAPICMode();
+
 public:
     Interrupt() = default;
     Interrupt(uint8_t interruptNumber, uint64_t errorCode, uint64_t stackFrame, bool hasError);
