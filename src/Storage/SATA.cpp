@@ -77,8 +77,7 @@ void SATA::Controller::init(shared_ptr<SATA::Controller> me) {
                 delete sata;
             } else {
                 Storage::addStorage(sata);
-                Output::getDefault()->printf("SATA: Port %hhu initialized\n", i);
-                Output::getDefault()->printf("      Type: %s Size: %d GB\n", sata->getTypeName(), sata->getSize() / 1Gi);
+                Output::getDefault()->printf("SATA: Port %hhu initialized! Type: %s Size: %d GB\n", i, sata->getTypeName(), sata->getSize() / 1Gi);
             }
         }
     }
@@ -249,6 +248,7 @@ uint8_t CommandTable::createPrdt(void* ptr, uint64_t& size) {
     uint8_t* address = (uint8_t*) ptr;
     uint8_t currentEntryIndex = 0;
     memset(prdtEntries, 0, sizeof(prdtEntries));
+
     uint64_t lastPhysicalAddress = 0;
     while (size > 0) {
         PrdtEntry* entry = &prdtEntries[currentEntryIndex];
@@ -273,7 +273,7 @@ uint8_t CommandTable::createPrdt(void* ptr, uint64_t& size) {
         if (entry->dataByteCount == 0) {
             entry->dataBaseAddressLow = (uint32_t) physicalAddress;
             entry->dataBaseAddressHigh = (uint32_t) (physicalAddress >> 32);
-            entry->dataByteCount = (uint32_t) entrySize;
+            entry->dataByteCount = (uint32_t) entrySize - 1;// '0' based count => 0 = 1 byte, 1 = 2 bytes, ...
             entry->interruptEnable = false;
         }
         address += entrySize;

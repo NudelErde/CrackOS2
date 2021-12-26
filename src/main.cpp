@@ -5,9 +5,11 @@
 #include "CPUControl/interrupts.hpp"
 #include "CPUControl/time.hpp"
 #include "CPUControl/tss.hpp"
+#include "Common/Symbols.hpp"
 #include "Common/Units.hpp"
 #include "LanguageFeatures/memory.hpp"
 #include "Memory/heap.hpp"
+#include "Memory/memory.hpp"
 #include "Memory/pageTable.hpp"
 #include "Memory/physicalAllocator.hpp"
 #include "PCI/pci.hpp"
@@ -15,8 +17,9 @@
 
 alignas(4096) char firstKernelStack[4096]{};
 
+extern "C" void secondaryCpuMain();
+
 extern "C" void main(uint64_t multiboot) {
-    using namespace time;
     Output::init();
     Output::getDefault()->clear();
     Output::getDefault()->setCursor(0, 0);
@@ -26,6 +29,7 @@ extern "C" void main(uint64_t multiboot) {
     readMultiboot(multiboot);
     ACPI::init();
     Interrupt::enableInterrupts();
+    APIC::initAllCPUs();
     PCI::init();
 
     Output::getDefault()->print("Done!\n");

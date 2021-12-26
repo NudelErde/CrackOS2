@@ -3,6 +3,8 @@ extern kernel_start
 extern physical_kernel_start
 extern __kernel_main
 global start
+global page_table_l4
+global gdt64.pointer
 
 section .text
 bits 64

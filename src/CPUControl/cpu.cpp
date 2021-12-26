@@ -1,4 +1,6 @@
 #include "CPUControl/cpu.hpp"
+#include "ACPI/APIC.hpp"
+#include "BasicOutput/Output.hpp"
 
 [[noreturn]] void stop() {
     while (true) {

@@ -21,7 +21,7 @@ struct InterruptGate {
 };
 static_assert(sizeof(InterruptGate) == sizeof(uint8_t) * 16, "InterruptGate is not 16 bytes");
 
-alignas(pageSize) static InterruptGate interruptVectorTable[256] = {};
+alignas(pageSize) InterruptGate interruptVectorTable[256] = {};
 static_assert(sizeof(interruptVectorTable) == pageSize, "Interrupt vector table size is not page size");
 static_assert(alignof(interruptVectorTable) == pageSize, "Interrupt vector table alignment is not page size");
 

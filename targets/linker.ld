@@ -2,6 +2,22 @@ ENTRY(start)
 
 SECTIONS
 {
+	. = 0x08000;
+	trampolineStart = .;
+	.trampoline_text : {
+		build/asm_object_files/trampoline.o (.text)
+	}
+	.trampoline_rodata : {
+		build/asm_object_files/trampoline.o (.rodata)
+	}
+	.trampoline_bss : {
+		build/asm_object_files/trampoline.o (.bss)
+	}
+	.trampoline_data : {
+		build/asm_object_files/trampoline.o (.data)
+	}
+	. = ALIGN(0x1000);
+	trampolineEnd = .;
 	. = 1M;
 	physical_start = .;
 	_start_start = .;

@@ -245,7 +245,22 @@ static void initMemoryInfos(uint8_t* ptr) {
     });
 }
 
+void setUsed(uint64_t start, uint64_t length) {
+}
+
 void PhysicalAllocator::readMultibootInfos(uint8_t* ptr) {
     getStaticData(ptr);
     initMemoryInfos(ptr);
+    //set kernel used
+    uint64_t trampolineStart;
+    saveReadSymbol("trampolineStart", trampolineStart);
+    uint64_t trampolineEnd;
+    saveReadSymbol("trampolineEnd", trampolineEnd);
+    uint64_t kernelStart;
+    saveReadSymbol("kernel_start", kernelStart);
+    uint64_t kernelEnd;
+    saveReadSymbol("kernel_end", kernelEnd);
+
+    setUsed(kernelStart, kernelEnd - kernelStart);
+    setUsed(trampolineStart, trampolineEnd - trampolineStart);
 }

@@ -2,6 +2,8 @@
 #include "BasicOutput/Output.hpp"
 #include "CPUControl/cpu.hpp"
 #include "CPUControl/interrupts.hpp"
+#include "CPUControl/time.hpp"
+#include "Common/Symbols.hpp"
 #include "LanguageFeatures/memory.hpp"
 #include "Memory/memory.hpp"
 #include "Memory/tempMapping.hpp"
@@ -49,7 +51,10 @@ struct EntryBase {
     uint8_t size;
 } __attribute__((packed));
 
+static uint32_t cpuBitmap;
+
 bool APICTableParser::parse(ACPI::TableHeader* table) {
+    cpuBitmap = 0;
     if (memcmp(table->Signature, "APIC", 4) == 0) {
         processorCount = 0;
         MADT* madt = (MADT*) table;
@@ -68,6 +73,7 @@ bool APICTableParser::parse(ACPI::TableHeader* table) {
                 ProcessorLocalAPIC* processor = (ProcessorLocalAPIC*) entry;
                 Output::getDefault()->printf("APIC: Processor %hhu, local APIC %hhu\n", processor->processorID, processor->localAPICID);
                 processorCount++;
+                cpuBitmap |= 1ull << processor->localAPICID;
             }
             remainingSize -= entry->size;
             entry = (EntryBase*) ((uint64_t) entry + entry->size);
@@ -291,7 +297,7 @@ void APIC::sendEOI() {
     set(0xB0, 0);
 }
 
-void APIC::sendInterrupt(uint8_t vector, uint8_t destinationMode, uint8_t targetCpu, uint8_t targetSelector) {
+void APIC::sendInterrupt(uint8_t vector, uint8_t destinationMode, uint8_t targetCpu, uint8_t targetSelector, bool deassert) {
     uint32_t target = get(0x310);
     target &= (0b1111ull << 24);
     target |= (targetCpu << 24);
@@ -300,7 +306,57 @@ void APIC::sendInterrupt(uint8_t vector, uint8_t destinationMode, uint8_t target
     command |= (destinationMode << 8);
     command |= vector;
     command |= (targetSelector << 18);
-    command |= (0b1 << 14);
+    if (!deassert) {
+        command |= (0b1 << 14);
+    } else {
+        command |= (0b1 << 15);
+    }
     set(0x300, command);
     while (get(0x300) & (1 << 12)) {}
+}
+
+static bool secondaryCpuInInit;// this should be a mutex or stuff
+static uint8_t secondaryCpuId;
+
+static void initCPU(uint8_t cpuid, uint64_t entry) {
+    using namespace time;
+    while (secondaryCpuInInit) {}
+
+    secondaryCpuInInit = true;
+    APIC::sendInterrupt(entry / pageSize, 5, cpuid, 0, false);
+    sleep(1ms);
+    APIC::sendInterrupt(entry / pageSize, 5, cpuid, 0, true);
+    sleep(1ms);
+    Output::getDefault()->printf("APIC: Secondary CPU %hhu starting: ", cpuid);
+    secondaryCpuId = cpuid;
+    APIC::sendInterrupt(entry / pageSize, 6, cpuid, 0, false);
+    sleep(100ms);
+}
+
+extern "C" void secondaryCpuMain() {
+    //TODO allocate stack
+    //TODO change stack
+    //TODO add stuff that returns cpu specific memory
+    uint8_t cpuid = secondaryCpuId;
+    Output::getDefault()->printf("CPU %hhu started\n", cpuid);
+    secondaryCpuInInit = false;
+    stop();
+}
+
+void APIC::initAllCPUs() {
+    uint64_t entry;
+    saveReadSymbol("trampolineStart", entry);
+    if (entry % pageSize != 0) {
+        Output::getDefault()->print("Invalid trampoline start address!\n");
+    } else {
+        secondaryCpuInInit = false;
+        for (uint64_t i = 0; i < 64; ++i) {
+            if (cpuBitmap & (1ull << i)) {
+                if (i == APIC::getCPUID()) {
+                    continue;// do not init self
+                }
+                initCPU(i, entry);
+            }
+        }
+    }
 }
