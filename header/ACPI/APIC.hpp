@@ -16,4 +16,6 @@ public:
     static void mapInterrupt(uint8_t interruptNum, uint8_t resultVector, uint8_t cpuId);
     static uint8_t getCPUID();
     static void sendEOI();
+
+    static void sendInterrupt(uint8_t vector, uint8_t destinationMode, uint8_t targetCpu, uint8_t targetSelector);
 };

@@ -138,9 +138,9 @@ void Interrupt::setupInterruptVectorTable() {
 
     //set interrupt handlers
     for (uint16_t i = 0; i < 256; i++) {
-        setupInterruptHandler((uint8_t) i, systemError);
+        setupInterruptHandler((uint8_t) i, systemError, {true, 2});
     }
-    setupInterruptHandler(14, onPageFault);
+    setupInterruptHandler(14, onPageFault, {true, 1});
 }
 
 void Interrupt::setupInterruptHandler(uint8_t interruptNumber, InterruptHandler handlerAddress, InterruptOptions options) {
@@ -275,6 +275,7 @@ void Interrupt::sendEOI(uint8_t interruptNumber) {
 
 void Interrupt::switchToAPICMode() {
     APICEnabled = true;
+    PICData.isActive = false;
     //disable PIC
     out8(PIC1_DATA, 0xFF);
     out8(PIC2_DATA, 0xFF);

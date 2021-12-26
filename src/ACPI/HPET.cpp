@@ -63,7 +63,6 @@ bool HPETParser::parse(ACPI::TableHeader* table) {
     Output::getDefault()->printf("HPET: %s-bit mode\n", bit64 ? "64" : "32");
     Output::getDefault()->printf("HPET: supports legacy replacement: %s\n", legacy ? "yes" : "no");
     //disable hpet legacy replacement and enable counter
-    Output::getDefault()->print(BitList(*(uint64_t*) (hpetAddress + 0x10)));
     *(uint64_t*) (hpetAddress + 0x10) = 0b1;
 
     for (uint8_t i = 0; i < numberOfCounters; i++) {

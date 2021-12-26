@@ -58,12 +58,21 @@ bool APICTableParser::parse(ACPI::TableHeader* table) {
         uint64_t remainingSize = madt->header.Length - sizeof(MADT);
         while (remainingSize > 0) {
             if (entry->type == 0) {
+                struct ProcessorLocalAPIC {
+                    EntryBase base;
+                    uint8_t processorID;
+                    uint8_t localAPICID;
+                    uint32_t flags;
+                } __attribute__((packed));
+                static_assert(sizeof(ProcessorLocalAPIC) == 8, "ProcessorLocalAPIC is not 8 bytes");
+                ProcessorLocalAPIC* processor = (ProcessorLocalAPIC*) entry;
+                Output::getDefault()->printf("APIC: Processor %hhu, local APIC %hhu\n", processor->processorID, processor->localAPICID);
                 processorCount++;
             }
             remainingSize -= entry->size;
             entry = (EntryBase*) ((uint64_t) entry + entry->size);
         }
-        Output::getDefault()->printf("Found %hhu processors\n", processorCount);
+        Output::getDefault()->printf("APIC: Found %hhu processor(s)\n", processorCount);
         acpiTable = table;
         Interrupt::switchToAPICMode();
         return true;
@@ -280,4 +289,18 @@ uint8_t APIC::getCPUID() {
 
 void APIC::sendEOI() {
     set(0xB0, 0);
+}
+
+void APIC::sendInterrupt(uint8_t vector, uint8_t destinationMode, uint8_t targetCpu, uint8_t targetSelector) {
+    uint32_t target = get(0x310);
+    target &= (0b1111ull << 24);
+    target |= (targetCpu << 24);
+    set(0x310, target);
+    uint32_t command = 0;
+    command |= (destinationMode << 8);
+    command |= vector;
+    command |= (targetSelector << 18);
+    command |= (0b1 << 14);
+    set(0x300, command);
+    while (get(0x300) & (1 << 12)) {}
 }
