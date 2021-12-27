@@ -72,11 +72,13 @@ void SATA::Controller::init(shared_ptr<SATA::Controller> me) {
     // try to init each port
     for (uint8_t i = 0; i < 32; ++i) {
         if (portsAvailable & (1 << i)) {
-            SATA* sata = new SATA(me);
-            if (!sata->tryToInit(i)) {
-                delete sata;
-            } else {
-                Storage::addStorage(sata);
+            shared_ptr<SATA> sata = make_shared<SATA>(me);
+            if (sata->tryToInit(i)) {
+                shared_ptr<Storage> storagePtr = static_pointer_cast<Storage>(sata);
+                Storage::addStorage(storagePtr);
+                if (MBRPartitionTable::isUsableTableType(storagePtr)) {
+                    storagePtr->setPartition(static_pointer_cast<PartitionTable>(make_shared<MBRPartitionTable>(storagePtr)));
+                }
                 Output::getDefault()->printf("SATA: Port %hhu initialized! Type: %s Size: %d GB\n", i, sata->getTypeName(), sata->getSize() / 1Gi);
             }
         }

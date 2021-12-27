@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Memory/memory.hpp"
+#include "Storage/Partition.hpp"
 #include "stdint.h"
 
 class Storage {
@@ -10,12 +12,22 @@ public:
 
     virtual ~Storage() = default;
 
-    inline Storage* getNext() {
+    inline const shared_ptr<Storage>& getNext() {
         return next;
     }
-    static void addStorage(Storage*);
-    static Storage* getFirst();
+
+    inline const shared_ptr<PartitionTable>& getPartition() {
+        return partition;
+    }
+
+    inline void setPartition(const shared_ptr<PartitionTable>& partition) {
+        this->partition = partition;
+    }
+
+    static void addStorage(const shared_ptr<Storage>&);
+    static const shared_ptr<Storage>& getFirst();
 
 private:
-    Storage* next;
+    shared_ptr<Storage> next;
+    shared_ptr<PartitionTable> partition;
 };
