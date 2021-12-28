@@ -25,7 +25,9 @@ class Output {
 public:
     virtual ~Output() = default;
 
-    virtual void print(char c) = 0;
+    virtual void printImpl(char c) = 0;
+
+    void print(char c);
     void print(const char* str);
     void print(uint64_t hex, uint8_t minSize = 1, uint64_t maxSize = sizeof(uint64_t) * 2);
     void printDec(int64_t dec, bool printPlus = false);
@@ -87,5 +89,44 @@ public:
     }
 
     static Output* getDefault();
+    static void setDefault(Output* defaultOutput);
+    static uint64_t readBuffer(uint8_t* buffer, uint64_t bufferSize);
     static void init();
+};
+
+class CombinedOutput : public Output {
+private:
+    Output* primary;
+    Output* secondary;
+
+public:
+    inline CombinedOutput(Output* primary, Output* secondary) : primary(primary), secondary(secondary) {}
+    inline void printImpl(char c) override {
+        primary->printImpl(c);
+        secondary->printImpl(c);
+    }
+    inline void clear() {
+        primary->clear();
+        secondary->clear();
+    }
+    inline uint64_t getWidth() {
+        return primary->getWidth();
+    }
+    inline uint64_t getHeight() {
+        return primary->getHeight();
+    }
+    inline uint64_t getX() {
+        return primary->getX();
+    }
+    inline uint64_t getY() {
+        return primary->getY();
+    }
+    inline void setX(uint64_t x) {
+        primary->setX(x);
+        secondary->setX(x);
+    }
+    inline void setY(uint64_t y) {
+        primary->setY(y);
+        secondary->setY(y);
+    }
 };

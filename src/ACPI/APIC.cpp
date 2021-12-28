@@ -315,22 +315,22 @@ void APIC::sendInterrupt(uint8_t vector, uint8_t destinationMode, uint8_t target
     while (get(0x300) & (1 << 12)) {}
 }
 
-static bool secondaryCpuInInit;// this should be a mutex or stuff
+static volatile bool secondaryCpuInInit;// this should be a mutex or stuff
 static uint8_t secondaryCpuId;
 
 static void initCPU(uint8_t cpuid, uint64_t entry) {
     using namespace time;
-    while (secondaryCpuInInit) {}
 
     secondaryCpuInInit = true;
-    APIC::sendInterrupt(entry / pageSize, 5, cpuid, 0, false);
+    APIC::sendInterrupt(0, 5, cpuid, 0, false);
     sleep(1ms);
-    APIC::sendInterrupt(entry / pageSize, 5, cpuid, 0, true);
+    APIC::sendInterrupt(0, 5, cpuid, 0, true);
     sleep(1ms);
     Output::getDefault()->printf("APIC: Secondary CPU %hhu starting: ", cpuid);
     secondaryCpuId = cpuid;
     APIC::sendInterrupt(entry / pageSize, 6, cpuid, 0, false);
     sleep(100ms);
+    while (secondaryCpuInInit) {}
 }
 
 extern "C" void secondaryCpuMain() {
@@ -344,6 +344,7 @@ extern "C" void secondaryCpuMain() {
 }
 
 void APIC::initAllCPUs() {
+    using namespace time;
     uint64_t entry;
     saveReadSymbol("trampolineStart", entry);
     if (entry % pageSize != 0) {

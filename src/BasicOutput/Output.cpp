@@ -1,16 +1,58 @@
 #include "BasicOutput/Output.hpp"
 #include "BasicOutput/VGATextOut.hpp"
+#include "Common/Math.hpp"
+#include "LanguageFeatures/memory.hpp"
 #include "Memory/memory.hpp"
 
 uint8_t defaultBuffer[sizeof(VGATextOut)];
 Output* defaultOut;
 
+uint8_t outputBuffer[4096];// ring buffer
+uint64_t outputBufferStart;
+uint64_t outputBufferEnd;
+uint64_t outputBufferSize;
+
 void Output::init() {
     defaultOut = new ((void*) defaultBuffer) VGATextOut();
+    outputBufferStart = 0;
+    outputBufferEnd = 0;
+    outputBufferSize = 0;
 }
 
 Output* Output::getDefault() {
     return defaultOut;
+}
+
+void Output::setDefault(Output* defaultOutput) {
+    defaultOut = defaultOutput;
+}
+
+static void addToBuffer(char c) {
+    outputBuffer[outputBufferEnd] = c;
+    outputBufferEnd = (outputBufferEnd + 1) % 4096;
+    outputBufferSize++;
+    if (outputBufferSize > 4096) {
+        outputBufferSize = 4096;
+    }
+    if (outputBufferSize = 4096) {// if ring buffer is full, overwrite the first character
+        outputBufferStart = (outputBufferEnd + 1) % 4096;
+    }
+}
+
+uint64_t Output::readBuffer(uint8_t* buffer, uint64_t bufferSize) {
+    uint64_t maxRead = min(outputBufferSize, bufferSize);
+    //copy from end of outputBuffer to buffer with a for loop (use mod to wrap around)
+    uint64_t uncopiedFromStart = outputBufferSize - maxRead;
+    for (uint64_t i = 0; i < maxRead; i++) {
+        buffer[i] = outputBuffer[(uncopiedFromStart + outputBufferStart + i) % 4096];
+    }
+
+    return maxRead;
+}
+
+void Output::print(char c) {
+    addToBuffer(c);
+    printImpl(c);
 }
 
 void Output::print(const char* str) {

@@ -7,7 +7,7 @@ public:
     VGATextOut();
     ~VGATextOut() override = default;
 
-    void print(char c) override;
+    void printImpl(char c) override;
     void clear() override;
     uint64_t getWidth() override;
     uint64_t getHeight() override;

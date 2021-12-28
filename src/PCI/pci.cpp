@@ -4,6 +4,7 @@
 #include "LanguageFeatures/memory.hpp"
 #include "Memory/memory.hpp"
 #include "Memory/tempMapping.hpp"
+#include "PCI/serial.hpp"
 #include "Storage/SATA.hpp"
 
 //------------------------------------------------------------------------------
@@ -174,7 +175,11 @@ void PCI::addHandler(PCI::Handler* handler) {
 
 void PCI::init() {
     first = nullptr;
+
     PCI::addHandler(SATA::getPCIHandler());
+    PCI::addHandler(Serial::getPCIHandler());
+
+
     Output::getDefault()->printf("PCI: Class       Vendor      Location\n");
     PCI::iterateDevices([](PCI& device, void*) {
         Output::getDefault()->printf("     %2hhx:%2hhx:%2hhx    %4hx:%4hx   %2hhx:%2hhx.%1hhx\n",

@@ -19,7 +19,7 @@ void VGATextOut::scroll() {
     setCursor(0, getHeight() - 1);
 }
 
-void VGATextOut::print(char c) {
+void VGATextOut::printImpl(char c) {
     if (c == '\n') {
         setY(getY() + 1);
         setX(0);
