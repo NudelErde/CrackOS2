@@ -15,9 +15,7 @@
 #include "PCI/pci.hpp"
 #include "stdint.h"
 
-alignas(4096) char firstKernelStack[4096]{};
-
-extern "C" void secondaryCpuMain();
+alignas(4096) char firstKernelStack[4096 * 4]{};
 
 extern "C" void main(uint64_t multiboot) {
     Output::init();

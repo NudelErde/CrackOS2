@@ -15,7 +15,7 @@ static void basicPrint(uint64_t hex, uint8_t minSize = 1);
 static inline void callMain(uint64_t multibootInfo) {
     uint64_t kernelStack;
     saveReadSymbol("firstKernelStack", kernelStack);
-    kernelStack += 4092;
+    kernelStack += 0x4000 - 0x10;
     uint64_t mainAddress;
     saveReadSymbol("main", mainAddress);
     //call main using kernel stack with multiboot info as first argument
