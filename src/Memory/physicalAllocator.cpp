@@ -245,7 +245,79 @@ static void initMemoryInfos(uint8_t* ptr) {
     });
 }
 
-void setUsed(uint64_t start, uint64_t length) {
+static void setUsed(uint64_t start, uint64_t length) {
+    MemoryRegionDescriptor* region = (MemoryRegionDescriptor*) TempMemory::mapPages(0, 1, false);
+    MemoryRegionDescriptor* last = region;
+    region = (MemoryRegionDescriptor*) TempMemory::mapPages(region->nextPhysicalAddress, 1, false);
+    while ((uint64_t) region != 96Ti) {// can only find usable memory regions
+        // Output::getDefault()->printf("Memory: Looking at region at 0x%llx with size 0x%llx\n", region->startPageIndex * pageSize, region->pageCount * pageSize);
+        // [a1,a2] and [b1,b2] // start and end inclusive
+        // a1 = start / pageSize, a2 = (start + length + pageSize - 1) / pageSize
+        // b1 = region->startPageIndex, b2 = region->startPageIndex + region->pageCount
+        // case 1a: a1----a2----b1----b2 -> do nothing
+        // case 1b: b1----b2----a1----a2 -> do nothing
+        // case 2:  a1----b1----b2----a2 -> delete region b1----b2
+        // case 3:  a1----b1----a2----b2 -> change start of region to a2
+        // case 4:  b1----a1----b2----a2 -> change end of region to a1
+        // case 5:  b1----a1----a2----b2 -> change end of region to a1 and create region a2----b2
+        uint64_t a1 = start / pageSize;
+        uint64_t a2 = (start + length + pageSize - 1) / pageSize;
+        a2 += 1;// add one page to be save
+        uint64_t b1 = region->startPageIndex;
+        uint64_t b2 = region->startPageIndex + region->pageCount;
+        if (a2 <= b1 || b2 <= a1) {
+            // case 1
+            // do nothing
+        } else if (a1 <= b1 && b2 <= a2) {
+            // case 2
+            // delete region b1----b2
+            // Output::getDefault()->printf("Memory: Case2: Deleting region at 0x%llx with size 0x%llx\n", b1 * pageSize, b2 * pageSize);
+            last->nextPhysicalAddress = region->nextPhysicalAddress;
+            region = (MemoryRegionDescriptor*) TempMemory::mapPages(region->nextPhysicalAddress, 1, false);
+            // Output::getDefault()->printf("Memory: Deleted region\n");
+            continue;
+        } else if (a1 <= b1) {
+            // case 3
+            // change start of region to a2
+            // Output::getDefault()->printf("Memory: Case3: Changing start of region at 0x%llx with size 0x%llx to 0x%llx\n", b1 * pageSize, b2 * pageSize, a2 * pageSize);
+            uint64_t newStart = a2 * pageSize;
+            MemoryRegionDescriptor* newRegion = (MemoryRegionDescriptor*) TempMemory::mapPages(newStart, 1, false);
+            newRegion->startPageIndex = a2;
+            newRegion->pageCount = b2 - a2;// end - start
+            newRegion->type = region->type;
+            newRegion->nextPhysicalAddress = region->nextPhysicalAddress;
+            last->nextPhysicalAddress = newStart;
+            region = newRegion;
+            // Output::getDefault()->printf("Memory: Region is now at 0x%llx with size 0x%llx\n", region->startPageIndex * pageSize, region->pageCount * pageSize);
+        } else if (b2 <= a2) {
+            // case 4
+            // change end of region to a1
+            // Output::getDefault()->printf("Memory: Case4: Changing end of region at 0x%llx with size 0x%llx to 0x%llx\n", b1 * pageSize, b2 * pageSize, a1 * pageSize);
+            region->pageCount = a1 - b1;
+            // Output::getDefault()->printf("Memory: Region is now at 0x%llx with size 0x%llx\n", region->startPageIndex * pageSize, region->pageCount * pageSize);
+        } else {
+            // case 5
+            // change end of region to a1 and create region a2----b2
+            // Output::getDefault()->printf("Memory: Case5: Changing end of region at 0x%llx with size 0x%llx to 0x%llx and creating region at 0x%llx with size 0x%llx\n", b1 * pageSize, b2 * pageSize, a1 * pageSize, a2 * pageSize, b2 * pageSize);
+
+            // change end of region to a1
+            region->pageCount = a1 - b1;
+            // Output::getDefault()->printf("Memory: Region is now at 0x%llx with size 0x%llx\n", region->startPageIndex * pageSize, region->pageCount * pageSize);
+
+            // create region a2----b2
+            uint64_t newStart = a2 * pageSize;
+            MemoryRegionDescriptor* newRegion = (MemoryRegionDescriptor*) TempMemory::mapPages(newStart, 1, false);
+            newRegion->startPageIndex = a2;
+            newRegion->pageCount = b2 - a2;
+            newRegion->type = region->type;
+            newRegion->nextPhysicalAddress = region->nextPhysicalAddress;
+            region->nextPhysicalAddress = newStart;
+            // Output::getDefault()->printf("Memory: Region is now at 0x%llx with size 0x%llx\n", region->startPageIndex * pageSize, region->pageCount * pageSize);
+        }
+
+        last = region;
+        region = (MemoryRegionDescriptor*) TempMemory::mapPages(region->nextPhysicalAddress, 1, false);
+    }
 }
 
 void PhysicalAllocator::readMultibootInfos(uint8_t* ptr) {
@@ -257,10 +329,12 @@ void PhysicalAllocator::readMultibootInfos(uint8_t* ptr) {
     uint64_t trampolineEnd;
     saveReadSymbol("trampolineEnd", trampolineEnd);
     uint64_t kernelStart;
-    saveReadSymbol("kernel_start", kernelStart);
+    saveReadSymbol("physical_start", kernelStart);
     uint64_t kernelEnd;
-    saveReadSymbol("kernel_end", kernelEnd);
+    saveReadSymbol("physical_end", kernelEnd);
 
     setUsed(kernelStart, kernelEnd - kernelStart);
+    Output::getDefault()->printf("Memory: Kernel used: 0x%llx - 0x%llx\n", kernelStart, kernelEnd);
     setUsed(trampolineStart, trampolineEnd - trampolineStart);
+    Output::getDefault()->printf("Memory: Trampoline used: 0x%llx - 0x%llx\n", trampolineStart, trampolineEnd);
 }

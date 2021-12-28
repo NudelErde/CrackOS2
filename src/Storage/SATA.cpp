@@ -348,6 +348,52 @@ bool SATA::waitForFinish() {
         if (port->taskFileData & 0b1) return false;// error
     }
 }
+
+bool SATA::sendIdentify() {
+    using namespace time;
+    Port* port = dbar.getAs<Port>();
+
+    uint64_t slotID = findSlot();
+    if (slotID >= 32) {
+        return false;
+    }
+    CommandSlot* commandSlot = (CommandSlot*) (commandSlotPtr + (slotID * sizeof(CommandSlot)));
+    CommandTable* commandTable = commandSlot->getCommandTable();
+    FisH2D* fis = (FisH2D*) &(commandTable->commandFIS);
+    memset(fis, 0, sizeof(FisH2D));
+    fis->fisType = 0x27;
+    fis->command = 0xEC;
+    fis->isCommand = true;
+    commandSlot->commandFISLength = sizeof(FisH2D) / sizeof(uint32_t);
+
+    uint8_t buffer[512]{};
+    commandTable->prdtEntries[0].dataByteCount = sizeof(buffer);
+    commandTable->prdtEntries[0].dataBaseAddressLow = (uint32_t) PageTable::getPhysicalAddress((uint64_t) buffer);
+    commandTable->prdtEntries[0].dataBaseAddressHigh = (uint32_t) (PageTable::getPhysicalAddress((uint64_t) buffer) >> 32);
+    commandTable->prdtEntries[0].interruptEnable = false;
+    commandSlot->prdByteCount = sizeof(buffer);
+    if (!waitForFinish()) {
+        return false;
+    }
+    port->commandIssue |= 0b1 << slotID;// execute command
+    if (!waitForTask(slotID)) {
+        return false;
+    }
+
+    uint64_t LBA48SectorCount = *(uint64_t*) (buffer + 200);
+    uint64_t LBA28SectorCount = *(uint32_t*) (buffer + 120);
+
+    //init sectorCount
+    if (LBA48SectorCount) {
+        sectorCount = LBA48SectorCount;
+        hasLBA48 = true;
+    } else if (LBA28SectorCount) {
+        sectorCount = LBA28SectorCount;
+        hasLBA48 = false;
+    }
+    return true;
+}
+
 bool SATA::tryToInit(uint8_t portIndex) {
     using namespace time;
     this->portIndex = portIndex;
@@ -422,43 +468,9 @@ bool SATA::tryToInit(uint8_t portIndex) {
     port->commandAndStatus |= 0b10001;             // start device
 
     //send identify command
-    uint64_t slotID = findSlot();
-    if (slotID >= 32) {
+    type = Type::SATA;// guess type = SATA
+    if (!sendIdentify()) {
         return false;
-    }
-    CommandSlot* commandSlot = (CommandSlot*) (commandSlotPtr + (slotID * sizeof(CommandSlot)));
-    CommandTable* commandTable = commandSlot->getCommandTable();
-    FisH2D* fis = (FisH2D*) &(commandTable->commandFIS);
-    memset(fis, 0, sizeof(FisH2D));
-    fis->fisType = 0x27;
-    fis->command = 0xEC;
-    fis->isCommand = true;
-    commandSlot->commandFISLength = sizeof(FisH2D) / sizeof(uint32_t);
-
-    uint8_t buffer[512]{};
-    commandTable->prdtEntries[0].dataByteCount = sizeof(buffer);
-    commandTable->prdtEntries[0].dataBaseAddressLow = (uint32_t) PageTable::getPhysicalAddress((uint64_t) buffer);
-    commandTable->prdtEntries[0].dataBaseAddressHigh = (uint32_t) (PageTable::getPhysicalAddress((uint64_t) buffer) >> 32);
-    commandTable->prdtEntries[0].interruptEnable = false;
-    commandSlot->prdByteCount = sizeof(buffer);
-    if (!waitForFinish()) {
-        return false;
-    }
-    port->commandIssue |= 0b1 << slotID;// execute command
-    if (!waitForTask(slotID)) {
-        return false;
-    }
-
-    uint64_t LBA48SectorCount = *(uint64_t*) (buffer + 200);
-    uint64_t LBA28SectorCount = *(uint32_t*) (buffer + 120);
-
-    //init sectorCount
-    if (LBA48SectorCount) {
-        sectorCount = LBA48SectorCount;
-        hasLBA48 = true;
-    } else if (LBA28SectorCount) {
-        sectorCount = LBA28SectorCount;
-        hasLBA48 = false;
     }
 
     switch (port->signature) {

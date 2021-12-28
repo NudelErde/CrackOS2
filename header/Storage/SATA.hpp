@@ -39,6 +39,7 @@ public:
 
 private:
     bool tryToInit(uint8_t port);
+    bool sendIdentify();
 
     PCI::BAR& getDBAR();
 
