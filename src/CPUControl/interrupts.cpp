@@ -140,7 +140,8 @@ void Interrupt::setupInterruptVectorTable() {
     for (uint16_t i = 0; i < 256; i++) {
         setupInterruptHandler((uint8_t) i, systemError, {true, 2});
     }
-    setupInterruptHandler(14, onPageFault, {true, 1});
+    setupInterruptHandler(6, onInvalidOpcode, {true, 1});// stack 1 = interrupt stack
+    setupInterruptHandler(14, onPageFault, {true, 1});   // stack 1 = interrupt stack
 }
 
 void Interrupt::setupInterruptHandler(uint8_t interruptNumber, InterruptHandler handlerAddress, InterruptOptions options) {

@@ -1,4 +1,5 @@
 #pragma once
+#include "BasicOutput/Output.hpp"
 #include "Memory/memory.hpp"
 
 class Storage;
@@ -17,7 +18,11 @@ public:
         return !storage.expired() && !self.expired();
     }
 
-private:
+    inline weak_ptr<Storage> getStorage() {
+        return storage;
+    }
+
+protected:
     weak_ptr<Storage> storage;
     weak_ptr<PartitionTable> self;
 
@@ -37,8 +42,42 @@ public:
         return partitionTable.exists();
     }
 
-private:
+    inline Partition(shared_ptr<PartitionTable> partitionTable) : partitionTable(partitionTable){};
+
+protected:
     shared_ptr<PartitionTable> partitionTable;
+};
+
+class OffsetImplementationPartition : public Partition {
+public:
+    inline uint64_t getSize() override {
+        return size;
+    }
+
+    int64_t read(uint64_t offset, uint64_t size, uint8_t* buffer) override;
+
+    int64_t write(uint64_t offset, uint64_t size, uint8_t* buffer) override;
+
+    inline OffsetImplementationPartition(shared_ptr<PartitionTable> partitionTable, uint64_t offset, uint64_t size)
+        : Partition(partitionTable), offset(offset), size(size) {}
+
+    inline ~OffsetImplementationPartition() {}
+
+private:
+    uint64_t size;
+    uint64_t offset;
+};
+
+class MBRPartition : public OffsetImplementationPartition {
+public:
+    inline MBRPartition(shared_ptr<PartitionTable> partitionTable, uint64_t offset, uint64_t size, bool bootable,
+                        uint8_t type)
+        : OffsetImplementationPartition(partitionTable, offset, size), bootable(bootable), type(type) {}
+    inline ~MBRPartition() {}
+
+private:
+    bool bootable;
+    uint8_t type;
 };
 
 class MBRPartitionTable : public PartitionTable {
@@ -50,4 +89,7 @@ public:
     uint32_t getPartitionCount() override;
 
     static bool isUsableTableType(shared_ptr<Storage> storage);
+
+private:
+    uint8_t bootSector[512]{};
 };

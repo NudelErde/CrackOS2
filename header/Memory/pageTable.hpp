@@ -25,7 +25,7 @@ public:
     /**
      * @brief Returns the physical address that the given virtual address maps to.
      * @param virtualAddress the virtual address to get the physical address of.
-     * @return the physical address that the given virtual address maps to.
+     * @return the physical address that the given virtual address maps to or 0 if the virtual address is not mapped.
      */
     static uint64_t getPhysicalAddress(uint64_t virtualAddress);
 

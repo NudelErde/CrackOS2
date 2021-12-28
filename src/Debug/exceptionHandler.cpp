@@ -1,6 +1,10 @@
 #include "Debug/exceptionHandler.hpp"
 #include "BasicOutput/Output.hpp"
 #include "CPUControl/cpu.hpp"
+#include "Memory/memory.hpp"
+#include "Memory/pageTable.hpp"
+#include "Memory/physicalAllocator.hpp"
+#include "Memory/tempMapping.hpp"
 
 void onPageFault(Interrupt& inter) {
     auto out = Output::getDefault();
@@ -33,7 +37,19 @@ void onPageFault(Interrupt& inter) {
     if (id) {
         out->print("Page fault was during a instruction fetch\n");
     }
-    out->setCursor(0, 0);
-    out->print("Meh\n");
+    stop();
+}
+
+void onInvalidOpcode(Interrupt& inter) {
+    uint64_t instructionAddress = inter.getInstruction();
+    auto out = Output::getDefault();
+    out->printf("Invalid opcode at %llx\n", instructionAddress);
+    uint64_t phyAddress = PageTable::getPhysicalAddress(instructionAddress);
+    out->printf("Physical address: %llx\n", phyAddress);
+    if ((phyAddress & ~(pageSize - 1ull)) != 0) {
+        uint8_t* address = TempMemory::mapPages(phyAddress, 1, false);
+        out->printf("Memory from: %p to %p\n", (void*) (address - pageSize / 2), (void*) (address + pageSize / 2));
+        out->printHexDump(address - pageSize / 2, pageSize);
+    }
     stop();
 }

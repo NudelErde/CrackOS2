@@ -57,6 +57,14 @@ public:
         return isError;
     }
 
+    [[nodiscard]] inline uint64_t getInstruction() const {
+        return ((uint64_t*) stackFrame)[0];
+    }
+
+    [[nodiscard]] inline uint64_t getStack() const {
+        return ((uint64_t*) stackFrame)[3];
+    }
+
 private:
     uint8_t interruptNumber;
     uint64_t errorCode;

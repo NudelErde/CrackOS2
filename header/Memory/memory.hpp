@@ -1,5 +1,7 @@
 #pragma once
 
+#include "BasicOutput/Output.hpp"
+#include "CPUControl/cpu.hpp"
 #include "LanguageFeatures/Types.hpp"
 #include <stdint.h>
 
@@ -142,6 +144,54 @@ unique_ptr<T> make_unique(Args&&... args) {
 template<typename T>
 class weak_ptr;
 
+#ifdef SHARED_POINTER_DEBUG_OUTPUT
+#define SHARED_POINTER_DEBUG_DESTROY() Output::getDefault()->printf("(this = %p) Destroying shared_ptr(%p) (%u references -> %u references) (%u weak references)\n", this, data, data->refCount, data->refCount - 1, data->weakCount)
+#define SHARED_POINTER_DEBUG_NORMAL_CONSTRUCTOR() Output::getDefault()->printf("(this = %p) shared_ptr constructor %p (%u references -> %u references) (%u weak references)\n", this, data, data->refCount - 1, data->refCount, data->weakCount)
+#define SHARED_POINTER_DEBUG_DESTRUCTOR() \
+    if (data) Output::getDefault()->printf("(this = %p) shared_ptr destructor %p (%u references -> %u references) (%u weak references)\n", this, data, data->refCount, data->refCount - 1, data->weakCount)
+#define SHARED_POINTER_DEBUG_COPY_CONSTRUCTOR() ([&]() {                                                                                                                                                                             \
+    if (other.data) {                                                                                                                                                                                                                \
+        Output::getDefault()->printf("(this = %p) shared_ptr copy constructor %p (%u references -> %u references) (%u weak references)\n", this, other.data, other.data->refCount, other.data->refCount + 1, other.data->weakCount); \
+    } else {                                                                                                                                                                                                                         \
+        Output::getDefault()->printf("(this = %p) shared_ptr copy constructor %p\n", this, other.data);                                                                                                                              \
+    } })()
+#define SHARED_POINTER_DEBUG_MOVE_CONSTRUCTOR() ([&]() {                                                                                                                                                                             \
+    if (other.data) {                                                                                                                                                                                                                \
+        Output::getDefault()->printf("(this = %p) shared_ptr move constructor %p (%u references -> %u references) (%u weak references)\n", this, other.data, other.data->refCount, other.data->refCount + 1, other.data->weakCount); \
+    } else {                                                                                                                                                                                                                         \
+        Output::getDefault()->printf("(this = %p) shared_ptr move constructor %p\n", this, other.data);                                                                                                                              \
+    } })()
+#define SHARED_POINTER_DEBUG_COPY_ASSIGN() ([&]() {                                                                                                                                                                                  \
+        Output::getDefault()->printf("(this = %p) shared_ptr(%p)", this, data);                                                                                                                                                      \
+        if (this->data != nullptr) {                                                                                                                                                                                                 \
+            Output::getDefault()->printf(" (%u references -> %u references) (% weak references)", data->refCount, data->refCount - 1, data->weakCount);                                                                              \
+        }                                                                                                                                                                                                                            \
+        Output::getDefault()->printf(" copy assignment %p", other.data);                                                                                                                                                             \
+        if (other.data != nullptr) {                                                                                                                                                                                                 \
+            Output::getDefault()->printf(" (%u references -> %u references) (%u weak references)\n", other.data->refCount, other.data->refCount + 1, other.data->weakCount);\
+        } })()
+#define SHARED_POINTER_DEBUG_MOVE_ASSIGN() ([&]() {                                                                                                                                                                                  \
+        Output::getDefault()->printf("(this = %p) shared_ptr(%p)", this, data);                                                                                                                                                      \
+        if (this->data != nullptr) {                                                                                                                                                                                                 \
+            Output::getDefault()->printf(" (%u references -> %u references) (% weak references)", data->refCount, data->refCount - 1, data->weakCount);                                                                              \
+        }                                                                                                                                                                                                                            \
+        Output::getDefault()->printf(" copy assignment %p", other.data);                                                                                                                                                             \
+        if (other.data != nullptr) {                                                                                                                                                                                                 \
+            Output::getDefault()->printf(" (%u references -> %u references) (%u weak references)\n", other.data->refCount, other.data->refCount + 1, other.data->weakCount);\
+        } })()
+
+
+#else
+#define SHARED_POINTER_DEBUG_DESTROY()
+#define SHARED_POINTER_DEBUG_NORMAL_CONSTRUCTOR()
+#define SHARED_POINTER_DEBUG_DESTRUCTOR()
+#define SHARED_POINTER_DEBUG_COPY_CONSTRUCTOR()
+#define SHARED_POINTER_DEBUG_MOVE_CONSTRUCTOR()
+#define SHARED_POINTER_DEBUG_COPY_ASSIGN()
+#define SHARED_POINTER_DEBUG_MOVE_ASSIGN()
+
+#endif
+
 template<typename T>
 class shared_ptr {
 public:
@@ -156,31 +206,38 @@ public:
 
     void destroy() {
         if (data) {
+            SHARED_POINTER_DEBUG_DESTROY();
             data->refCount--;
             if (data->refCount == 0) {
                 delete data->ptr;
+                data->ptr = nullptr;
                 if (data->weakCount == 0) {
                     delete data;
+                    data = nullptr;
                 }
             }
+            data = nullptr;// do not delete data twice
+        }
+    }
+
+    void check() const {
+        if (data == nullptr) {
+            Output::getDefault()->printf("(this = %p) Shared pointer accessed after destruction\n", this);
+            stop();
+        }
+        if (data->ptr == nullptr) {
+            Output::getDefault()->printf("(this = %p) Shared pointer (%p) data accessed after destruction (%i references, %i weak references)\n", this, data, data->refCount, data->weakCount);
+            stop();
         }
     }
 
 public:
-    template<typename... Args>
-    static shared_ptr create(Args&&... args) {
-        Data* data = new Data();
-        data->refCount = 1;
-
-        data->ptr = new T(std::forward<Args>(args)...);
-        return shared_ptr(data);
-    }
-
     shared_ptr() : data(nullptr) {}
     shared_ptr(T* ptr) {
         data = new Data();
         data->refCount = 1;
         data->ptr = ptr;
+        SHARED_POINTER_DEBUG_NORMAL_CONSTRUCTOR();
     }
 
     shared_ptr(unique_ptr<T>&& unique) noexcept {
@@ -192,34 +249,39 @@ public:
     }
 
     ~shared_ptr() {
+        SHARED_POINTER_DEBUG_DESTRUCTOR();
         destroy();
     }
 
     shared_ptr(const shared_ptr& other) {
+        SHARED_POINTER_DEBUG_COPY_CONSTRUCTOR();
         data = other.data;
         if (data)
             data->refCount++;
     }
 
     shared_ptr(shared_ptr&& other) noexcept {
+        SHARED_POINTER_DEBUG_MOVE_CONSTRUCTOR();
         data = other.data;
         other.data = nullptr;
     }
 
     shared_ptr& operator=(const shared_ptr& other) {
+        SHARED_POINTER_DEBUG_COPY_ASSIGN();
         if (this == &other) {
             return *this;
         }
+        if (other.data)
+            other.data->refCount++;
         if (data) {
             destroy();
         }
         data = other.data;
-        if (data)
-            data->refCount++;
         return *this;
     }
 
     shared_ptr& operator=(shared_ptr&& other) noexcept {
+        SHARED_POINTER_DEBUG_MOVE_ASSIGN();
         if (this == &other) {
             return *this;
         }
@@ -236,18 +298,22 @@ public:
     }
 
     T* operator->() {
+        check();
         return (T*) data->ptr;
     }
 
     T* operator->() const {
+        check();
         return (T*) data->ptr;
     }
 
     T& operator*() {
+        check();
         return *(T*) data->ptr;
     }
 
     T& operator*() const {
+        check();
         return *(T*) data->ptr;
     }
 
@@ -259,12 +325,16 @@ public:
         return data != other.data;
     }
 
+    operator bool() const {
+        return exists();
+    }
+
     friend class weak_ptr<T>;
 };
 
 template<typename T, typename... Args>
 shared_ptr<T> make_shared(Args&&... args) {
-    return shared_ptr<T>::create(std::forward<Args>(args)...);
+    return shared_ptr<T>(new T(std::forward<Args>(args)...));
 }
 
 template<typename T>
@@ -281,6 +351,7 @@ class weak_ptr {
                 //object is already destroyed
                 delete data;
             }
+            data = nullptr;
         }
     }
 
@@ -313,11 +384,11 @@ public:
         if (this == &other) {
             return *this;
         }
+        other.data->weakCount++;
         if (data) {
             destroy();
         }
         data = other.data;
-        data->weakCount++;
         return *this;
     }
 
@@ -345,10 +416,15 @@ public:
         destroy();
     }
 
+    operator bool() const {
+        return exists();
+    }
+
     shared_ptr<T> lock() const {
-        if (data == nullptr || data->refCount == 0) {
+        if (expired()) {
             return shared_ptr<T>();
         }
+        data->refCount++;
         return shared_ptr<T>(data);
     }
 
@@ -365,5 +441,6 @@ template<typename U, typename V>
 shared_ptr<U> static_pointer_cast(const shared_ptr<V>& shared) {
     typename shared_ptr<U>::Data* data = reinterpret_cast<typename shared_ptr<U>::Data*>(shared.data);
     data->ptr = static_cast<U*>(shared.data->ptr);
+    data->refCount++;
     return shared_ptr<U>(data);
 }

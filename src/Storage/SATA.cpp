@@ -76,9 +76,11 @@ void SATA::Controller::init(shared_ptr<SATA::Controller> me) {
             if (sata->tryToInit(i)) {
                 shared_ptr<Storage> storagePtr = static_pointer_cast<Storage>(sata);
                 Storage::addStorage(storagePtr);
+                uint64_t partitionCount = 0;
                 if (storagePtr->getSize() > 0) {
                     if (MBRPartitionTable::isUsableTableType(storagePtr)) {
                         storagePtr->setPartition(static_pointer_cast<PartitionTable>(make_shared<MBRPartitionTable>(storagePtr)));
+                        partitionCount = storagePtr->getPartition()->getPartitionCount();
                     }
                 }
                 const char* unit = "B";
@@ -96,7 +98,12 @@ void SATA::Controller::init(shared_ptr<SATA::Controller> me) {
                     unit = "KiB";
                     divider = 1Ki;
                 }
-                Output::getDefault()->printf("SATA: Port %hhu initialized! Type: %s Size: %u %s\n", i, sata->getTypeName(), sata->getSize() / divider, unit);
+                if (partitionCount > 0) {
+                    Output::getDefault()->printf("SATA: Port %hhu initialized! Type: %s Size: %u %s with %u partition%s\n",
+                                                 i, sata->getTypeName(), sata->getSize() / divider, unit, partitionCount, partitionCount == 1 ? "" : "s");
+                } else {
+                    Output::getDefault()->printf("SATA: Port %hhu initialized! Type: %s Size: %u %s\n", i, sata->getTypeName(), sata->getSize() / divider, unit);
+                }
             }
         }
     }
