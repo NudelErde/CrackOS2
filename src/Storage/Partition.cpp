@@ -1,5 +1,7 @@
 #include "Storage/Partition.hpp"
 #include "BasicOutput/Output.hpp"
+#include "Storage/Ext4.hpp"
+#include "Storage/Filesystem.hpp"
 #include "Storage/Storage.hpp"
 
 int64_t OffsetImplementationPartition::write(uint64_t offset, uint64_t size, uint8_t* buffer) {
@@ -29,6 +31,14 @@ MBRPartitionTable::MBRPartitionTable(weak_ptr<Storage> storage) : PartitionTable
 }
 MBRPartitionTable::~MBRPartitionTable() {}
 
+shared_ptr<Filesystem> MBRPartition::createFilesystem(shared_ptr<Partition> self) {
+    if (type == 0x83) {
+        shared_ptr<Ext4> ext4 = make_shared<Ext4>(self);
+        return static_pointer_cast<Filesystem>(ext4);
+    }
+    return shared_ptr<Filesystem>();
+}
+
 unique_ptr<Partition> MBRPartitionTable::getPartition(uint32_t index) {
     if (index >= 4) {
         return nullptr;
@@ -40,6 +50,9 @@ unique_ptr<Partition> MBRPartitionTable::getPartition(uint32_t index) {
     uint64_t size = *(uint32_t*) (data + 12);
     offset *= 512;
     size *= 512;
+    if (type == 0 || size == 0) {
+        return nullptr;
+    }
     return unique_ptr<Partition>(new MBRPartition(self.lock(), offset, size, bootable, type));
 }
 uint32_t MBRPartitionTable::getPartitionCount() {
@@ -47,7 +60,7 @@ uint32_t MBRPartitionTable::getPartitionCount() {
     for (uint8_t i = 0; i < 4; i++) {
         if (auto ptr = storage.lock(); ptr) {
             auto part = getPartition(i);
-            if (part->getSize() > 0) {
+            if (part && part->getSize() > 0) {
                 count++;
             }
         }
@@ -63,5 +76,14 @@ bool MBRPartitionTable::isUsableTableType(shared_ptr<Storage> storage) {
     if (bootSector[510] != 0x55 || bootSector[511] != 0xAA) {
         return false;
     }
+
+    //check if any partition has type 0xEE -> GPT partition table
+    for (uint8_t i = 0; i < 4; i++) {
+        uint8_t* data = &bootSector[446 + (i * 16)];
+        if (data[4] == 0xEE) {
+            return false;
+        }
+    }
+
     return true;
 }

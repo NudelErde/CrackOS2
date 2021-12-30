@@ -13,6 +13,7 @@
 #include "Memory/pageTable.hpp"
 #include "Memory/physicalAllocator.hpp"
 #include "PCI/pci.hpp"
+#include "Storage/Filesystem.hpp"
 #include "stdint.h"
 
 alignas(4096) char firstKernelStack[4096 * 4]{};
@@ -29,6 +30,8 @@ extern "C" void main(uint64_t multiboot) {
     Interrupt::enableInterrupts();
     APIC::initAllCPUs();
     PCI::init();
+
+    Filesystem::getSize("/fs0/hallo");
 
     Output::getDefault()->print("Done!\n");
 

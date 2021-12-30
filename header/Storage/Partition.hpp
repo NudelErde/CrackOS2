@@ -30,11 +30,15 @@ protected:
     friend class Partition;
 };
 
+class Filesystem;
+
 class Partition {
 public:
     virtual uint64_t getSize() = 0;
     virtual int64_t read(uint64_t offset, uint64_t size, uint8_t* buffer) = 0;
     virtual int64_t write(uint64_t offset, uint64_t size, uint8_t* buffer) = 0;
+
+    virtual shared_ptr<Filesystem> createFilesystem(shared_ptr<Partition> self) = 0;
 
     virtual ~Partition(){};
 
@@ -72,8 +76,11 @@ class MBRPartition : public OffsetImplementationPartition {
 public:
     inline MBRPartition(shared_ptr<PartitionTable> partitionTable, uint64_t offset, uint64_t size, bool bootable,
                         uint8_t type)
-        : OffsetImplementationPartition(partitionTable, offset, size), bootable(bootable), type(type) {}
+        : OffsetImplementationPartition(partitionTable, offset, size), bootable(bootable), type(type) {
+    }
     inline ~MBRPartition() {}
+
+    shared_ptr<Filesystem> createFilesystem(shared_ptr<Partition> self) override;
 
 private:
     bool bootable;

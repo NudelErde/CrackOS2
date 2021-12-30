@@ -120,6 +120,9 @@ public:
     bool exists() const {
         return ptr != nullptr;
     }
+    operator bool() const {
+        return exists();
+    }
     T* get() {
         return ptr;
     }
@@ -242,7 +245,11 @@ public:
 
     shared_ptr(unique_ptr<T>&& unique) noexcept {
         if (unique.exists()) {
-            shared_ptr(unique.release());
+            T* p = unique.release();
+            data = new Data();
+            data->refCount = 1;
+            data->ptr = p;
+            SHARED_POINTER_DEBUG_NORMAL_CONSTRUCTOR();
         } else {
             data = nullptr;
         }
@@ -294,7 +301,14 @@ public:
     }
 
     bool exists() const {
-        return data != nullptr;
+        return data != nullptr && data->ptr != nullptr;
+    }
+
+    T* get() const {
+        if (!exists()) {
+            return nullptr;
+        }
+        return data->ptr;
     }
 
     T* operator->() {

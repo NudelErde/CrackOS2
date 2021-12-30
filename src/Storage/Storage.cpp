@@ -1,5 +1,9 @@
 #include "Storage/Storage.hpp"
 #include "Common/Units.hpp"
+#include "LanguageFeatures/memory.hpp"
+#include "LanguageFeatures/string.hpp"
+#include "Storage/Filesystem.hpp"
+#include "Storage/Partition.hpp"
 
 static uint8_t firstStorageSharedPointerBuffer[sizeof(shared_ptr<Storage>)]{};
 static shared_ptr<Storage>* firstStorage;
@@ -20,6 +24,16 @@ void Storage::addStorage(const shared_ptr<Storage>& obj) {
             obj->setPartition(static_pointer_cast<PartitionTable>(make_shared<MBRPartitionTable>(obj)));
             partitionCount = obj->getPartition()->getPartitionCount();
         }
+    }
+
+    //TODO: create filesystem for each partition
+    for (uint64_t i = 0; i < partitionCount; ++i) {
+        shared_ptr<Partition> part = obj->getPartition()->getPartition(i);
+        char buffer[256];
+        memset(buffer, 0, 256);
+        memcpy(buffer, "/fs", 3);
+        intToString(i, buffer + 3, 10);
+        Filesystem::addPartition(part, buffer);
     }
 
     const char* unit = "B";
