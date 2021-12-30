@@ -31,7 +31,7 @@ public:
     int64_t write(uint64_t offset, uint64_t size, uint8_t* buffer) override;
 
     uint8_t getType();
-    const char* getTypeName();
+    const char* getTypeName() override;
 
     static PCI::Handler* getPCIHandler();
 
