@@ -5,21 +5,21 @@
 #include "Storage/Storage.hpp"
 
 int64_t OffsetImplementationPartition::write(uint64_t offset, uint64_t size, uint8_t* buffer) {
-    if (offset + size > this->size) {
+    if (size > this->size) {
         return -1;
     }
     if (auto ptr = partitionTable->getStorage().lock(); ptr) {
-        return ptr->write(offset + offset, size, buffer);
+        return ptr->write(this->offset + offset, size, buffer);
     }
     return -1;
 }
 
 int64_t OffsetImplementationPartition::read(uint64_t offset, uint64_t size, uint8_t* buffer) {
-    if (offset + size > this->size) {
+    if (size > this->size) {
         return -1;
     }
     if (auto ptr = partitionTable->getStorage().lock(); ptr) {
-        return ptr->read(offset + offset, size, buffer);
+        return ptr->read(this->offset + offset, size, buffer);
     }
     return -1;
 }

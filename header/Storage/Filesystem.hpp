@@ -34,8 +34,10 @@ public:
 
     static void addPartition(const shared_ptr<Partition>&, const char* prefix);
 
-private:
+protected:
     shared_ptr<Partition> partition;
+
+private:
     char* handlingPrefix;
     uint64_t prefixLength;
 

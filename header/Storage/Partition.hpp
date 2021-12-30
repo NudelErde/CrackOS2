@@ -8,8 +8,8 @@ class Partition;     // has read and write and shared pointer to its partition t
 
 class PartitionTable {
 public:
-    inline PartitionTable(weak_ptr<Storage> storage) : storage(storage){};
-    virtual ~PartitionTable(){};
+    inline PartitionTable(weak_ptr<Storage> storage) : storage(storage) {}
+    virtual ~PartitionTable() {}
 
     virtual unique_ptr<Partition> getPartition(uint32_t index) = 0;
     virtual uint32_t getPartitionCount() = 0;
@@ -20,6 +20,10 @@ public:
 
     inline weak_ptr<Storage> getStorage() {
         return storage;
+    }
+
+    inline void setSelf(shared_ptr<PartitionTable> self) {
+        this->self = self;
     }
 
 protected:

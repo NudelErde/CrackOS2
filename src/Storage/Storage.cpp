@@ -20,10 +20,13 @@ void Storage::addStorage(const shared_ptr<Storage>& obj) {
 
     uint64_t partitionCount = 0;
     if (obj->getSize() > 0) {
+        shared_ptr<PartitionTable> partitionTable;
         if (MBRPartitionTable::isUsableTableType(obj)) {
-            obj->setPartition(static_pointer_cast<PartitionTable>(make_shared<MBRPartitionTable>(obj)));
-            partitionCount = obj->getPartition()->getPartitionCount();
+            partitionTable = static_pointer_cast<PartitionTable>(make_shared<MBRPartitionTable>(obj));
         }
+        partitionTable->setSelf(partitionTable);//TODO: i really need to implement shared_from_this
+        obj->setPartition(partitionTable);
+        partitionCount = obj->getPartition()->getPartitionCount();
     }
 
     //TODO: create filesystem for each partition
