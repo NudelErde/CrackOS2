@@ -64,10 +64,11 @@ extern "C" int strcmp(const char* str1, const char* str2) {
         if (str1[i] != str2[i]) {
             return str1[i] - str2[i];
         }
-        if (str1[i] == '\0') {// str1[i] == str2[i] == '\0' because the previous if statement would have returned if they were not equal
+        if (str1[i] == '\0' && str2[i] == '\0') {
             return 0;
         }
     }
+    return 0;
 }
 
 extern "C" uint64_t strlen(const char* str) {

@@ -9,7 +9,8 @@ public:
         File,
         Directory,
         Other,
-        None
+        None,
+        Error
     };
 
     static void simplifyPath(const char* path, char* buffer, uint64_t bufferSize);

@@ -31,7 +31,18 @@ extern "C" void main(uint64_t multiboot) {
     APIC::initAllCPUs();
     PCI::init();
 
-    Filesystem::getSize("/fs0/hallo");
+    int64_t fileSize = Filesystem::getSize("/fs0/test");
+    Output::getDefault()->printf("File size: %d\n", fileSize);
+    if (fileSize < 0) {
+        stop();
+    }
+    uint8_t* buffer = new uint8_t[fileSize + 1];
+    buffer[fileSize] = 0;
+    int64_t operationResult = Filesystem::read("/fs0/test", 0, fileSize, buffer);
+    if (operationResult < 0) {
+        stop();
+    }
+    Output::getDefault()->printf("/test: %s\n", buffer);
 
     Output::getDefault()->print("Done!\n");
 

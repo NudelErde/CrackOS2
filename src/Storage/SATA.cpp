@@ -570,9 +570,11 @@ int64_t SATA::read(uint64_t offset, uint64_t size, uint8_t* buffer) {
     }
     //handle misaligned buffer (has to be aligned to 2byte boundary)
     if ((uint64_t) buffer % 2 != 0) {
-        uint8_t* tmp = new uint8_t[size];// allocate temporary buffer (this sucks)
-        res = read(offset, size, tmp);
-        memcpy(buffer, tmp, size);
+        uint8_t* tmp = new uint8_t[size + 1];// allocate temporary buffer (this sucks)
+
+        uint8_t* alignedBuffer = (uint8_t*) (((uint64_t) tmp + 1) & ~1ull);// align to 2byte boundary
+        res = read(offset, size, alignedBuffer);
+        memcpy(buffer, alignedBuffer, size);
         delete[] tmp;
         return res;
     }

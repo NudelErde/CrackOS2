@@ -148,7 +148,7 @@ int64_t Filesystem::getFileList(const char* filepath, char* buffer, uint64_t buf
 Filesystem::FileType Filesystem::getType(const char* filepath) {
     shared_ptr<Filesystem> filesystem = getFilesystem(filepath);
     if (!filesystem) {
-        return FileType::None;
+        return FileType::Error;
     }
     const char* path = filesystem->prefixLength + filepath;
     return filesystem->implGetType(path);

@@ -280,6 +280,10 @@ public:
         uint32_t crtime_extra;//Extra file creation time bits. This provides sub-second precision.
         uint32_t version_hi;  //Upper 32-bits for version number.
         uint32_t projid;      //Project ID.
+
+        inline uint64_t getFileSize() {
+            return ((uint64_t) size_high << 32) | size_lo;
+        }
     } __attribute__((packed));
     static_assert(sizeof(INode) == 0xA0, "INode size is wrong");
 
@@ -334,11 +338,18 @@ public:
     int64_t implGetFileOwner(const char* filepath) override;
     int64_t implSetFileOwner(const char* filepath, uint64_t owner) override;
 
+
 private:
     unique_ptr<Superblock> superblock;
     bool valid;
     uint64_t blockSize;
 
-    void getINode(uint64_t inodeNumber, INode* out);
-    void getGroupDescriptor(uint64_t inodeNumber, GroupDesc* out);
+    using TravelCallback = bool (*)(void* context, uint64_t offsetInFile, uint64_t offsetInPartition, uint64_t lengthInByte, Ext4* instance);// Return true to stop traversal.
+    void getINode(int64_t inodeNumber, INode* out);
+    void getGroupDescriptor(int64_t inodeNumber, GroupDesc* out);
+    void travelFile(int64_t inodeNumber, TravelCallback callback, void* context);
+    bool travelExtentTree(uint8_t* buffer, TravelCallback callback, void* context);
+    int64_t getINodeNumber(const char* filepath, int64_t inode = 2);
+
+    friend bool lookForFile(void* context, uint64_t inFile, uint64_t inPartition, uint64_t size, Ext4* instance);
 };
