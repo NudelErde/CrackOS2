@@ -24,12 +24,12 @@ struct IOOperationData {
     uint8_t* buffer;
     int64_t result;
 };
-
 int64_t Ext4::implRead(const char* filepath, uint64_t offset, uint64_t size, uint8_t* buffer) {
     if (!valid) { return -1; }
     uint64_t inodeNumber = getINodeNumber(filepath);
     if (inodeNumber < 1) { return -1; }
     IOOperationData data;
+    data.result = 0;
     data.offset = offset;
     data.size = size;
     data.buffer = buffer;
@@ -45,18 +45,15 @@ int64_t Ext4::implRead(const char* filepath, uint64_t offset, uint64_t size, uin
                 }
                 uint64_t overlapLength = overlapEnd - overlapStart;
 
-                uint64_t realOffsetInPartition = offsetInPartition + (overlapStart - offsetInFile);
-                // example:
-                // offsetInFile = 0x1000, overlapStart = 0x2000, offsetInPartition = 0x100000
-                // realOffsetInPartition = 0x100000 + (0x2000 - 0x1000) = 0x100000 + 0x1000 = 0x101000
+                uint64_t realOffsetInPartition = offsetInPartition + overlapStart;
 
-                uint64_t offsetInBuffer = data->offset - offsetInFile;
+                uint64_t offsetInBuffer = data->offset - overlapStart;
                 // example:
                 // data->offset: 0x1000, offsetInFile = 0xF00, offsetInBuffer = 0x1000 - 0xF00 = 0x100
 
                 uint64_t lengthInBuffer = min(overlapLength, data->size - offsetInBuffer);
 
-                data->result = instance->partition->read(realOffsetInPartition, lengthInBuffer, data->buffer + offsetInBuffer);
+                data->result += instance->partition->read(realOffsetInPartition, lengthInBuffer, data->buffer + offsetInBuffer);
                 return false;
             },
             &data);

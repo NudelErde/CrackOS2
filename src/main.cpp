@@ -13,6 +13,7 @@
 #include "Memory/pageTable.hpp"
 #include "Memory/physicalAllocator.hpp"
 #include "PCI/pci.hpp"
+#include "Process/Elf.hpp"
 #include "Storage/Filesystem.hpp"
 #include "stdint.h"
 
@@ -31,20 +32,21 @@ extern "C" void main(uint64_t multiboot) {
     APIC::initAllCPUs();
     PCI::init();
 
-    int64_t fileSize = Filesystem::getSize("/fs0/test");
-    Output::getDefault()->printf("File size: %d\n", fileSize);
+    const char* filename = "/fs0/a.out";
+
+    int64_t fileSize = Filesystem::getSize(filename);
+    Output::getDefault()->printf("File size: %s - %d\n", filename, fileSize);
     if (fileSize < 0) {
         stop();
     }
-    uint8_t* buffer = new uint8_t[fileSize + 1];
-    buffer[fileSize] = 0;
-    int64_t operationResult = Filesystem::read("/fs0/test", 0, fileSize, buffer);
-    if (operationResult < 0) {
-        stop();
-    }
-    Output::getDefault()->printf("/test: %s\n", buffer);
 
-    Output::getDefault()->print("Done!\n");
+    ElfFile elfFile(filename);
+    for (uint64_t i = 0; i < elfFile.getProgramSegmentCount(); i++) {
+        auto segment = elfFile.getProgramSegment(i);
+        if (segment.getType() == ElfFile::ProgramHeader::Type::Load) {
+            Output::getDefault()->printf("Segment %d\n", i);
+        }
+    }
 
     stop();
 }

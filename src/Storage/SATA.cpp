@@ -530,53 +530,91 @@ void SATA::writeH2DCommand(uint32_t slotID, uint8_t command, uint64_t sectorInde
 uint64_t SATA::getSize() {
     return sectorCount * sectorSize;
 }
+
+extern bool debug;
+
+static int64_t fixMissalignedOffsetRead(SATA* me, uint64_t offset, uint64_t size, uint8_t* buffer) {
+    if (offset % 512 == 0) {
+        Output::getDefault()->printf("SATA try to fix missaligned offset read, but offset is already aligned\n");
+        return -1;// offset is already aligned, this should not happen
+    }
+    if (offset / 512 == (offset + size - 1) / 512) {
+        // same sector
+        uint8_t sectorBuffer[512];
+        if (me->read(offset & ~(512ull - 1ull), 512, sectorBuffer) != 512) {
+            return -1;// read failed
+        }
+        memcpy(buffer, sectorBuffer + offset % 512, size);
+        return size;
+    } else {
+        // different sectors
+        // read first sector
+        uint8_t sectorBuffer[512];
+        if (me->read(offset & ~(512ull - 1ull), 512, sectorBuffer) != 512) {
+            return -1;// read failed
+        }
+        uint64_t firstSize = 512 - offset % 512;// example offset = 520 : 512 - (520 % 512) = 512 - 8 = 504
+        memcpy(buffer, sectorBuffer + offset % 512, firstSize);
+
+        // read the remaining
+        uint64_t remainingSize = size - firstSize;
+        uint64_t remainingOffset = offset + firstSize;
+        if (remainingOffset % 512 != 0) {
+            Output::getDefault()->printf("SATA implementation error %s:%u\n", __FILE__, __LINE__);
+            return -1;
+        }
+        if (me->read(remainingOffset, remainingSize, buffer + firstSize) != remainingSize) {
+            return -1;// read failed
+        }
+        return size;
+    }
+}
+
+static int64_t fixMissalignedSizeRead(SATA* me, uint64_t offset, uint64_t size, uint8_t* buffer) {
+    if (size % 512 == 0) {
+        Output::getDefault()->printf("SATA: try to fix missaligned size read, size is already aligned\n");
+        return -1;// size is already aligned, this should not happen
+    }
+    uint64_t alignedSize = size & ~(512 - 1);
+    uint64_t result1 = me->read(offset, alignedSize, buffer);
+    if (result1 != alignedSize) {
+        return -1;
+    }
+    uint8_t lastAlignedBuffer[512];
+    uint64_t result2 = me->read(offset + alignedSize, 512, lastAlignedBuffer);
+    memcpy(buffer + alignedSize, lastAlignedBuffer, size - alignedSize);
+    if (result2 != 512) {
+        return -1;
+    }
+    return size;
+}
+
+static int64_t fixMissalignedBufferRead(SATA* me, uint64_t offset, uint64_t size, uint8_t* buffer) {
+    if ((uint64_t) buffer % 2 == 0) {
+        Output::getDefault()->printf("SATA: try to fix buffer alignment, but buffer is already aligned\n");
+        return -1;// is already aligned, this should not happen
+    }
+    uint8_t* newBuffer = new uint8_t[size + 1];
+    uint8_t* alignedBuffer = (uint8_t*) (((uint64_t) newBuffer + 1ull) & ~1ull);// align to 2 bytes
+    int64_t result = me->read(offset, size, alignedBuffer);
+    memcpy(buffer, alignedBuffer, size);
+    delete[] newBuffer;
+    return result;
+}
+
 int64_t SATA::read(uint64_t offset, uint64_t size, uint8_t* buffer) {
     //handle offset that starts in a sector
-    int64_t res = 0;
+    if (size == 0) return 0;
     if (offset % 512 != 0) {
-        // read first requested sector
-        uint8_t tmp[512];
-        res = read(offset & ~(512 - 1), 512, tmp);
-
-        // copy requested data to buffer (less than 512 bytes)
-        memcpy(buffer, tmp + (offset % 512), min(512 - (offset % 512), size));
-        if (offset % 512 > size) {
-            return res;
-        }
-
-        // update offset and size
-        size -= 512 - (offset % 512);
-        buffer += 512 - (offset % 512);
-        offset += 512 - (offset % 512);
-        if (offset % 512 != 0) {
-            Output::getDefault()->printf("SATA implementation error %s:%u\n", __FILE__, __LINE__);
-            stop();
-        }
-
-        // no return because the following code reads the rest of the data
+        return fixMissalignedOffsetRead(this, offset, size, buffer);
     }
     //handle size that ends in the middle of a sector
     if (size % 512 != 0) {
-        int64_t res1 = read(offset, size & ~(512 - 1), buffer);//read everything except the last sector
-        //read last sector
-        uint8_t tmp[512];
-        int64_t res2 = read(offset + size - (size % 512), 512, tmp);
-        memcpy(buffer + size - (size % 512), tmp, size % 512);
-        // return because everything is read
-        if (res1 == -1 || res2 == -1) {
-            return -1;
-        }
-        return res1 + res2;
+        return fixMissalignedSizeRead(this, offset, size, buffer);
     }
     //handle misaligned buffer (has to be aligned to 2byte boundary)
     if ((uint64_t) buffer % 2 != 0) {
-        uint8_t* tmp = new uint8_t[size + 1];// allocate temporary buffer (this sucks)
-
-        uint8_t* alignedBuffer = (uint8_t*) (((uint64_t) tmp + 1) & ~1ull);// align to 2byte boundary
-        res = read(offset, size, alignedBuffer);
-        memcpy(buffer, alignedBuffer, size);
-        delete[] tmp;
-        return res;
+        return fixMissalignedBufferRead(this, offset, size, buffer);
     }
 
     //everything is nice and aligned
@@ -604,53 +642,102 @@ int64_t SATA::read(uint64_t offset, uint64_t size, uint8_t* buffer) {
     if (!waitForTask(slotID)) {
         return -1;
     }
-    return startSize - size + res;
+    return startSize - size;
 }
+
+static int64_t fixMissalignedOffsetWrite(SATA* me, uint64_t offset, uint64_t size, uint8_t* buffer) {
+    if (offset % 512 == 0) {
+        Output::getDefault()->printf("SATA try to fix missaligned offset write, but offset is already aligned\n");
+        return -1;// offset is already aligned, this should not happen
+    }
+    if (offset / 512 == (offset + size - 1) / 512) {
+        // same sector
+        uint8_t sectorBuffer[512];
+        if (me->read(offset & ~(512ull - 1ull), 512, sectorBuffer) != 512) {
+            return -1;// read failed
+        }
+        memcpy(sectorBuffer + offset % 512, buffer, size);
+        if (me->write(offset & ~(512ull - 1ull), 512, sectorBuffer) != 512) {
+            return -1;// write failed
+        }
+        return size;
+    } else {
+        // different sectors
+        // read first sector
+        uint8_t sectorBuffer[512];
+        if (me->read(offset & ~(512ull - 1ull), 512, sectorBuffer) != 512) {
+            return -1;// read failed
+        }
+        uint64_t firstSize = 512 - offset % 512;// example offset = 520 : 512 - (520 % 512) = 512 - 8 = 504
+        memcpy(sectorBuffer + offset % 512, buffer, firstSize);
+
+        // write the first sector
+        if (me->write(offset & ~(512ull - 1ull), 512, sectorBuffer) != 512) {
+            return -1;// write failed
+        }
+
+        // write the remaining
+        uint64_t remainingSize = size - firstSize;
+        uint64_t remainingOffset = offset + firstSize;
+        if (remainingOffset % 512 != 0) {
+            Output::getDefault()->printf("SATA implementation error %s:%u\n", __FILE__, __LINE__);
+            return -1;
+        }
+        if (me->write(remainingOffset, remainingSize, buffer + firstSize) != remainingSize) {
+            return -1;// write failed
+        }
+        return size;
+    }
+}
+
+static int64_t fixMissalignedSizeWrite(SATA* me, uint64_t offset, uint64_t size, uint8_t* buffer) {
+    if (size % 512 == 0) {
+        Output::getDefault()->printf("SATA: try to fix missaligned size write, size is already aligned\n");
+        return -1;// size is already aligned, this should not happen
+    }
+    uint64_t alignedSize = size & ~(512 - 1);
+    uint64_t result1 = me->write(offset, alignedSize, buffer);
+    if (result1 != alignedSize) {
+        return -1;
+    }
+    uint8_t lastAlignedBuffer[512];
+    if (me->read(offset + alignedSize, 512, lastAlignedBuffer) != 512) {
+        return -1;// read failed
+    }
+    memcpy(lastAlignedBuffer, buffer + alignedSize, size - alignedSize);
+    uint64_t result2 = me->write(offset + alignedSize, 512, lastAlignedBuffer);
+    if (result2 != 512) {
+        return -1;
+    }
+    return size;
+}
+
+int64_t fixMissalignedBufferWrite(SATA* me, uint64_t offset, uint64_t size, uint8_t* buffer) {
+    if ((uint64_t) buffer % 2 == 0) {
+        Output::getDefault()->printf("SATA: try to fix buffer alignment, but buffer is already aligned\n");
+        return -1;// is already aligned, this should not happen
+    }
+    uint8_t* newBuffer = new uint8_t[size + 1];
+    uint8_t* alignedBuffer = (uint8_t*) (((uint64_t) newBuffer + 1ull) & ~1ull);// align to 2 bytes
+    memcpy(alignedBuffer, buffer, size);
+    int64_t result = me->write(offset, size, alignedBuffer);
+    delete[] newBuffer;
+    return result;
+}
+
 int64_t SATA::write(uint64_t offset, uint64_t size, uint8_t* buffer) {
     //handle offset that starts in a sector
     int64_t res = 0;
     if (offset % 512 != 0) {
-        // write first requested sector
-        uint8_t tmp[512];
-        memcpy(tmp + (offset % 512), buffer, min(512 - (offset % 512), size));
-        res = write(offset & ~(512 - 1), 512, tmp);
-
-        // copy requested data to buffer (less than 512 bytes)
-        if (offset % 512 > size) {
-            return res;
-        }
-
-        // update offset and size
-        size -= 512 - (offset % 512);
-        buffer += 512 - (offset % 512);
-        offset += 512 - (offset % 512);
-        if (offset % 512 != 0) {
-            Output::getDefault()->printf("SATA implementation error %s:%u\n", __FILE__, __LINE__);
-            stop();
-        }
-
-        // no return because the following code writes the rest of the data
+        fixMissalignedOffsetWrite(this, offset, size, buffer);
     }
     //handle size that ends in the middle of a sector
     if (size % 512 != 0) {
-        int64_t res1 = write(offset, size & ~(512 - 1), buffer);//write everything except the last sector
-        //read last sector
-        uint8_t tmp[512];
-        memcpy(tmp, buffer + size - (size % 512), size % 512);
-        int64_t res2 = write(offset + size - (size % 512), 512, tmp);
-        // return because everything is written
-        if (res1 == -1 || res2 == -1) {
-            return -1;
-        }
-        return res1 + res2;
+        fixMissalignedSizeWrite(this, offset, size, buffer);
     }
     //handle misaligned buffer (has to be aligned to 2byte boundary)
     if ((uint64_t) buffer % 2 != 0) {
-        uint8_t* tmp = new uint8_t[size];// allocate temporary buffer (this sucks)
-        memcpy(tmp, buffer, size);
-        res = write(offset, size, tmp);
-        delete[] tmp;
-        return res;
+        fixMissalignedBufferWrite(this, offset, size, buffer);
     }
 
     //everything is nice and aligned
